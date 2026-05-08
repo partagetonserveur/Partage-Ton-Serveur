@@ -1,4 +1,4 @@
-# Partage-Ton-Serveur
+# Partage Ton Serveur
 Plateforme de partage et de publicité de serveurs Discord
 <!DOCTYPE html>
 <html lang="fr">
