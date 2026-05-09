@@ -53,7 +53,7 @@
     .btn {
       display: inline-block;
       margin-top: 40px;
-      background: #ffaa00;
+      background: #ffa500;
       color: #000;
       padding: 16px 40px;
       border-radius: 12px;
@@ -254,12 +254,12 @@
 
   <header>
     <h1>📮 Partage Ton Serveur</h1>
-    <p>**La plateforme de référence pour propulser vos communautés francophones. Visibilité, entraide et croissance garanties.**</p>
+    <p>La plateforme de référence pour propulser vos communautés francophones. Visibilité, entraide et croissance garanties.</p>
     <a href="#" class="btn">Rejoindre l'aventure</a>
   </header>
 
   <section id="features">
-    <h2 class="title">Pourquoi nous choisir ?</h2>
+    <h2 class="title">Pourquoi nous rejoindre ?</h2>
     <div class="cards">
       <div class="card">
         <span class="icon">📢</span>
@@ -344,4 +344,3 @@
   </footer>
 
 </body>
-</html>
