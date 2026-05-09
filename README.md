@@ -1,9 +1,8 @@
-<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Partage-Ton-Serveur — La référence Discord FR</title>
+  <title>Partage Ton Serveur — La référence Discord FR</title>
 
   <!-- Polices -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -178,7 +177,7 @@
     }
 
     .content h3 {
-      color: #ffaa00;
+      color: #ffa500;
       font-size: 30px;
       margin-bottom: 10px;
       font-family: 'Anton', sans-serif;
@@ -206,7 +205,7 @@
     }
 
     .stat h2 {
-      color: #ffaa00;
+      color: #ffa500;
       font-size: 50px;
       font-family: 'Anton', sans-serif;
     }
@@ -255,7 +254,7 @@
 <body>
 
   <header>
-    <h1>🚀 Partage-Ton-Serveur</h1>
+    <h1>🚀 Partage Ton Serveur</h1>
     <p>La plateforme de référence pour propulser vos communautés francophones. Visibilité, entraide et croissance garanties.</p>
     <a href="#" class="btn">Rejoindre l'aventure</a>
   </header>
@@ -320,7 +319,7 @@
     <h2 class="title">En quelques chiffres</h2>
     <div class="stats">
       <div class="stat">
-        <h2>1500+</h2>
+        <h2>4380+</h2>
         <p>Membres</p>
       </div>
       <div class="stat">
@@ -328,7 +327,7 @@
         <p>Serveurs liés</p>
       </div>
       <div class="stat">
-        <h2>50+</h2>
+        <h2>150+</h2>
         <p>Partenaires</p>
       </div>
     </div>
@@ -336,13 +335,13 @@
 
   <!-- Section finale inspirée par ton image.png -->
   <section class="cta-section">
-    <span class="cta-subtitle">REJOINS-NOUS MAINTENANT</span>
+    <span class="cta-subtitle">REJOINS-NOUS DES MAINTENANT</span>
     <h2 class="cta-title">PRÊT À FAIRE EXPLOSER TON PROJET ?</h2>
     <a href="#" class="btn">Ouvrir Discord</a>
   </section>
 
   <footer>
-    &copy; 2026 Partage-Ton-Serveur — Développé avec passion pour la communauté.
+    &copy; 2026 Partage Ton Serveur — Développé avec passion pour la communauté.
   </footer>
 
 </body>
