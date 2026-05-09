@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Partage-Ton-Serveur — La référence Discord FR</title>
+
+  <!-- Polices -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Poppins:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* --- RESET & BASE --- */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: #111111;
+      color: white;
+      font-family: 'Poppins', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* --- HEADER --- */
+    header {
+      padding: 140px 10%;
+      text-align: center;
+      background: linear-gradient(to bottom, #1a1a1a, #111111);
+      border-bottom: 2px solid #ffaa00;
+    }
+
+    header h1 {
+      font-size: clamp(40px, 8vw, 85px);
+      color: #ffaa00;
+      font-family: 'Anton', sans-serif;
+      letter-spacing: 2px;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      text-shadow: 0 0 20px rgba(255, 170, 0, 0.2);
+    }
+
+    header p {
+      color: #cfcfcf;
+      font-size: 20px;
+      max-width: 800px;
+      margin: auto;
+      line-height: 1.6;
+    }
+
+    /* --- BOUTONS --- */
+    .btn {
+      display: inline-block;
+      margin-top: 40px;
+      background: #ffaa00;
+      color: #000;
+      padding: 16px 40px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 800;
+      text-transform: uppercase;
+      transition: .3s;
+      box-shadow: 0 4px 15px rgba(255, 170, 0, 0.3);
+    }
+
+    .btn:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 25px rgba(255, 170, 0, 0.5);
+      background: #ffbc33;
+    }
+
+    /* --- SECTIONS --- */
+    section {
+      padding: 100px 10%;
+    }
+
+    .title {
+      text-align: center;
+      font-size: clamp(30px, 5vw, 55px);
+      color: #ffaa00;
+      margin-bottom: 70px;
+      font-family: 'Anton', sans-serif;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* --- CARTES (GRILLE) --- */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+    }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2b2b2b;
+      padding: 40px;
+      border-radius: 18px;
+      transition: .4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .card:hover {
+      border: 1px solid #ffaa00;
+      transform: translateY(-10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .icon {
+      font-size: 45px;
+      margin-bottom: 20px;
+      display: block;
+    }
+
+    .card h3 {
+      font-size: 24px;
+      font-family: 'Anton', sans-serif;
+      margin-bottom: 15px;
+      text-transform: uppercase;
+      color: #fff;
+    }
+
+    .card p {
+      color: #b3b3b3;
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    /* --- TIMELINE --- */
+    .timeline {
+      position: relative;
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    .timeline::after {
+      content: '';
+      position: absolute;
+      width: 4px;
+      background: #ffaa00;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      margin-left: -2px;
+    }
+
+    .container {
+      padding: 20px 40px;
+      position: relative;
+      width: 50%;
+    }
+
+    .container::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: #111;
+      border: 4px solid #ffaa00;
+      top: 40px;
+      border-radius: 50%;
+      z-index: 1;
+    }
+
+    .left { left: 0; text-align: right; }
+    .right { left: 50%; text-align: left; }
+
+    .left::after { right: -10px; }
+    .right::after { left: -10px; }
+
+    .content {
+      background: #1a1a1a;
+      padding: 30px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 170, 0, 0.2);
+    }
+
+    .content h3 {
+      color: #ffaa00;
+      font-size: 30px;
+      margin-bottom: 10px;
+      font-family: 'Anton', sans-serif;
+    }
+
+    /* --- STATS --- */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+    }
+
+    .stat {
+      background: #1a1a1a;
+      padding: 40px 20px;
+      border-radius: 18px;
+      text-align: center;
+      border-bottom: 3px solid transparent;
+      transition: .3s;
+    }
+
+    .stat:hover {
+      border-bottom: 3px solid #ffaa00;
+      background: #222;
+    }
+
+    .stat h2 {
+      color: #ffaa00;
+      font-size: 50px;
+      font-family: 'Anton', sans-serif;
+    }
+
+    /* --- SECTION REJOINS-NOUS (Vu sur image.png) --- */
+    .cta-section {
+      text-align: center;
+      background: linear-gradient(to top, #181818, #111111);
+      padding: 100px 10%;
+    }
+
+    .cta-subtitle {
+      color: #ffaa00;
+      font-weight: 700;
+      letter-spacing: 3px;
+      font-size: 14px;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    .cta-title {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(30px, 6vw, 60px);
+      margin-bottom: 20px;
+    }
+
+    /* --- FOOTER --- */
+    footer {
+      background: #0a0a0a;
+      text-align: center;
+      padding: 40px;
+      color: #666;
+      border-top: 1px solid #222;
+      font-size: 14px;
+    }
+
+    /* --- RESPONSIVE --- */
+    @media (max-width: 900px) {
+      .timeline::after { left: 31px; }
+      .container { width: 100%; padding-left: 70px; padding-right: 20px; text-align: left; }
+      .right { left: 0; }
+      .left::after, .right::after { left: 21px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🚀 Partage-Ton-Serveur</h1>
+    <p>La plateforme de référence pour propulser vos communautés francophones. Visibilité, entraide et croissance garanties.</p>
+    <a href="#" class="btn">Rejoindre l'aventure</a>
+  </header>
+
+  <section id="features">
+    <h2 class="title">Pourquoi nous choisir ?</h2>
+    <div class="cards">
+      <div class="card">
+        <span class="icon">📢</span>
+        <h3>Visibilité Maximale</h3>
+        <p>Mettez en avant votre projet auprès d'une audience qualifiée et boostez votre nombre de membres.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🤝</span>
+        <h3>Partenariats</h3>
+        <p>Créez des alliances stratégiques avec d'autres administrateurs pour grandir ensemble.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🏆</span>
+        <h3>Qualité Certifiée</h3>
+        <p>Une modération stricte pour assurer une communauté saine, active et bienveillante.</p>
+      </div>
+      <div class="card">
+        <span class="icon">⚡</span>
+        <h3>Activité 24/7</h3>
+        <p>Des salons dynamiques et une équipe disponible pour vous accompagner à chaque étape.</p>
+      </div>
+    </div>
+  </section>
+
+  <section style="background: #151515;">
+    <h2 class="title">Notre Histoire</h2>
+    <div class="timeline">
+      <div class="container left">
+        <div class="content">
+          <h3>2020</h3>
+          <p>Lancement officiel et premiers systèmes de pub.</p>
+        </div>
+      </div>
+      <div class="container right">
+        <div class="content">
+          <h3>2022</h3>
+          <p>Refonte globale et cap des 500 membres atteint.</p>
+        </div>
+      </div>
+      <div class="container left">
+        <div class="content">
+          <h3>2024</h3>
+          <p>Nouvelle identité visuelle et outils automatisés.</p>
+        </div>
+      </div>
+      <div class="container right">
+        <div class="content">
+          <h3>2026</h3>
+          <p>Leader du partage de serveurs Discord en France.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="title">En quelques chiffres</h2>
+    <div class="stats">
+      <div class="stat">
+        <h2>1500+</h2>
+        <p>Membres</p>
+      </div>
+      <div class="stat">
+        <h2>800+</h2>
+        <p>Serveurs liés</p>
+      </div>
+      <div class="stat">
+        <h2>50+</h2>
+        <p>Partenaires</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section finale inspirée par ton image.png -->
+  <section class="cta-section">
+    <span class="cta-subtitle">REJOINS-NOUS MAINTENANT</span>
+    <h2 class="cta-title">PRÊT À FAIRE EXPLOSER TON PROJET ?</h2>
+    <a href="#" class="btn">Ouvrir Discord</a>
+  </section>
+
+  <footer>
+    &copy; 2026 Partage-Ton-Serveur — Développé avec passion pour la communauté.
+  </footer>
+
+</body>
+</html>
