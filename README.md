@@ -1,7 +1,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Partage Ton Serveur — La référence Discord FR</title>
+  <title> — La référence Discord FR</title>
 
   <!-- Polices -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -78,7 +78,7 @@
     .title {
       text-align: center;
       font-size: clamp(30px, 5vw, 55px);
-      color: #ffaa00;
+      color: #ffa500;
       margin-bottom: 70px;
       font-family: 'Anton', sans-serif;
       letter-spacing: 2px;
@@ -217,7 +217,7 @@
     }
 
     .cta-subtitle {
-      color: #ffaa00;
+      color: #ffa500;
       font-weight: 700;
       letter-spacing: 3px;
       font-size: 14px;
@@ -253,8 +253,8 @@
 <body>
 
   <header>
-    <h1>🚀 Partage Ton Serveur</h1>
-    <p>La plateforme de référence pour propulser vos communautés francophones. Visibilité, entraide et croissance garanties.</p>
+    <h1>📮 Partage Ton Serveur</h1>
+    <p>**La plateforme de référence pour propulser vos communautés francophones. Visibilité, entraide et croissance garanties.**</p>
     <a href="#" class="btn">Rejoindre l'aventure</a>
   </header>
 
