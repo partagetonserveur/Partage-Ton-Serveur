@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -35,7 +34,7 @@
 
     header h1 {
       font-size: clamp(40px, 8vw, 85px);
-      color: #ffaa00;
+      color: #ffa500;
       font-family: 'Anton', sans-serif;
       letter-spacing: 2px;
       margin-bottom: 20px;
@@ -44,7 +43,7 @@
     }
 
     header p {
-      color: #cfcfcf;
+      color: #ffa500;
       font-size: 20px;
       max-width: 800px;
       margin: auto;
@@ -255,7 +254,7 @@
 <body>
 
   <header>
-    <h1>🚀 Partage-Ton-Serveur</h1>
+    <h1>🚀 Partage Ton Serveur</h1>
     <p>La plateforme de référence pour propulser vos communautés francophones. Visibilité, entraide et croissance garanties.</p>
     <a href="#" class="btn">Rejoindre l'aventure</a>
   </header>
