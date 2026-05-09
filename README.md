@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+DOCTYPE html>
 <html lang="fr">
 
 <head>
@@ -202,14 +202,14 @@
 
   <div class="hero">
 
-    <h1>🚀 Partage-Ton-Serveur</h1>
+    <h1>🚀 Partage Ton Serveur</h1>
 
     <p>
       Une plateforme communautaire dédiée à la publicité,
       au partage et au développement des serveurs Discord.
     </p>
 
-    <a href="https://discord.gg/votrecode" class="btn">
+    <a href="https://discord.gg/partagetonserveur" class="btn">
       Rejoindre le serveur
     </a>
 
@@ -226,7 +226,7 @@
   <div class="about">
 
     <p>
-      Partage-Ton-Serveur a été créé pour permettre aux communautés Discord
+      Partage Ton Serveur a été créé pour permettre aux communautés Discord
       de gagner en visibilité et de développer leur activité.
     </p>
 
