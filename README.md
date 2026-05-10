@@ -2,7 +2,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Partage-Ton-Serveur — La référence Discord FR</title>
+  <title>Partage Ton Serveur — La référence Discord FR</title>
 
   <!-- Polices -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -319,7 +319,7 @@
     <h2 class="title">En quelques chiffres</h2>
     <div class="stats">
       <div class="stat">
-        <h2>1500+</h2>
+        <h2>4370+</h2>
         <p>Membres</p>
       </div>
       <div class="stat">
@@ -341,7 +341,7 @@
   </section>
 
   <footer>
-    &copy; 2026 Partage-Ton-Serveur — Développé avec passion pour la communauté.
+    &copy; 2026 & Partage Ton Serveur — Développé avec passion pour la communauté.
   </footer>
 
 </body>
