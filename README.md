@@ -1,3 +1,7 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  
 <title>Partage Ton Serveur — La référence Discord FR</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -307,11 +311,11 @@
         <p>Membres</p>
       </div>
       <div class="stat">
-        <h2>800+</h2>
-        <p>Serveurs liés</p>
+        <h2>+2M</h2>
+        <p>Messages Envoyés</p>
       </div>
       <div class="stat">
-        <h2>150+</h2>
+        <h2>+150</h2>
         <p>Partenaires</p>
       </div>
     </div>
@@ -328,3 +332,4 @@
   </footer>
 
 </body>
+</html>
