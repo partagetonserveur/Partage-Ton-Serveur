@@ -14,7 +14,8 @@ const SCAM_RULES = [
   { regex: /n[i1]tr[o0]/i, points: 2 },       // Nitro
   { regex: /fr[e3][e3]/i, points: 2 },        // Free
   { regex: /cl[a4][i1]m/i, points: 3 },       // Claim
-  { regex: /g[i1]v[e3][a4]w[a4]y/i, points: 3 } // Giveaway];
+  { regex: /g[i1]v[e3][a4]w[a4]y/i, points: 3 } // Giveaway
+    ];
 
 client.on('messageCreate', async (message) => {
     // On ignore les bots et les messages privés
