@@ -1,6 +1,5 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 
-// Création du bot avec les accès aux messages
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds, 
@@ -9,51 +8,54 @@ const client = new Client({
     ] 
 });
 
-// Système de score "Intelligent"
+// ID DU SALON DE LOGS (À REMPLACER)
+const LOG_CHANNEL_ID = "785955694050410516";
+
 const SCAM_RULES = [
-  { regex: /n[i1]tr[o0]/i, points: 2 },       // Nitro
-  { regex: /fr[e3][e3]/i, points: 2 },        // Free
-  { regex: /cl[a4][i1]m/i, points: 3 },       // Claim
-  { regex: /g[i1]v[e3][a4]w[a4]y/i, points: 3 } // Giveaway
-    ];
+  { regex: /n[i1]tr[o0]/i, points: 2 },       
+  { regex: /fr[e3][e3]/i, points: 2 },        
+  { regex: /cl[a4][i1]m/i, points: 3 },       
+  { regex: /g[i1]v[e3][a4]w[a4]y/i, points: 3 } 
+];
 
 client.on('messageCreate', async (message) => {
-    // On ignore les bots et les messages privés
     if (message.author.bot || !message.guild) return;
 
     let scamScore = 0;
     const content = message.content;
+    const contentLower = content.toLowerCase();
 
-    // Calcul du score de danger
     SCAM_RULES.forEach(rule => {
-        if (rule.regex.test(content)) {
+        if (rule.regex.test(contentLower)) {
             scamScore += rule.points;
         }
     });
 
-    // Détection des majuscules excessives (+2 points)
     const upperCase = content.replace(/[^A-Z]/g, "").length;
     if (upperCase > content.length * 0.7 && content.length > 15) {
         scamScore += 2;
     }
 
-    // Seuil de sanction (8 points = suppression, 12 points = timeout)
     if (scamScore >= 8) {
         try {
             await message.delete();
-            const logChannel = message.channel; 
-            const warn = await logChannel.send(`⚠️ **Anti-Scam :** Message suspect de ${message.author} supprimé (Score: ${scamScore}).`);
-            setTimeout(() => warn.delete(), 5000);
 
-            if (scamScore >= 12) {
-                await message.member.timeout(600000, "Tentative de scam automatique"); // 10 min
+            // Log dans le salon secret
+            const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+            if (logChannel) {
+                await logChannel.send(
+                    `⚠️ **[LOG ANTI-SCAM]** ⚠️\n` +
+                    `• **Auteur :** ${message.author} (${message.author.tag})\n` +
+                    `• **Salon :** ${message.channel}\n` +
+                    `• **Score de danger :** \`${scamScore}/10\`\n` +
+                    `• **Contenu suspect :** \`\`\`${content}\`\`\`\n` +
+                    `• **Action :** Message supprimé automatiquement.`
+                );
             }
         } catch (err) {
-            console.error("Erreur modération :", err);
+            console.error("Erreur log anti-scam :", err);
         }
     }
 });
 
-// Connexion sécurisée via GitHub Secrets
 client.login(process.env.DISCORD_TOKEN);
-
