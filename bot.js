@@ -11,13 +11,10 @@ const client = new Client({
 
 // Système de score "Intelligent"
 const SCAM_RULES = [
-    { regex: /(?i)n[i1]tr[o0]/, points: 2 },           // Nitro
-    { regex: /(?i)fr[e3][e3]/, points: 2 },            // Free
-    { regex: /(?i)cl[a4][i1]m/, points: 3 },           // Claim
-    { regex: /(?i)@everyone|@here/, points: 4 },       // Mentions
-    { regex: /(?i)st[e3][a4]m|gift|card|robux/, points: 2 },
-    { regex: /(?i)http[s]?:\/\/(?!discord\.com|discord\.gg|spotify\.com)/, points: 3 } // Liens suspects
-];
+  { regex: /n[i1]tr[o0]/i, points: 2 },       // Nitro
+  { regex: /fr[e3][e3]/i, points: 2 },        // Free
+  { regex: /cl[a4][i1]m/i, points: 3 },       // Claim
+  { regex: /g[i1]v[e3][a4]w[a4]y/i, points: 3 } // Giveaway];
 
 client.on('messageCreate', async (message) => {
     // On ignore les bots et les messages privés
