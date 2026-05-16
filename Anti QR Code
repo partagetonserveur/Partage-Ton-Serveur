@@ -17,59 +17,56 @@ const LOG_CHANNEL_ID = "785955694050410516";
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
-    // On vérifie si le message contient une pièce jointe (image)
+    // Si pas de pièce jointe, on ignore
     if (message.attachments.size === 0) return;
 
     for (const [id, attachment] of message.attachments) {
-        // On vérifie si le fichier est bien une image (png, jpg, jpeg, webp)
+        // Validation stricte du format image
         const isImage = /\.(png|jpe?g|webp)$/i.test(attachment.url);
         if (!isImage) continue;
 
         try {
-            // 1. Le bot télécharge l'image en mémoire
+            // 1. Téléchargement de l'image
             const response = await axios.get(attachment.url, { responseType: 'arraybuffer' });
             const imageBuffer = Buffer.from(response.data);
 
-            // 2. On utilise 'sharp' pour extraire les pixels bruts de l'image pour que 'jsQR' puisse la lire
-            const { data, info } = await sharp(imageBuffer)
+            // 2. Traitement optimisé : on force l'image en 4 canaux (RGBA) pour jsQR
+            const image = sharp(imageBuffer);
+            const { data, info } = await image
                 .ensureAlpha()
                 .raw()
                 .toBuffer({ resolveWithObject: true });
 
-            // 3. 'jsQR' scanne l'image à la recherche d'un QR Code
+            // 3. Scan du QR Code
             const qrCode = jsQR(new Uint8ClampedArray(data), info.width, info.height);
 
-            // Si un QR Code est trouvé dans l'image
             if (qrCode && qrCode.data) {
-                const detectedUrl = qrCode.data.toLowerCase();
+                const detectedUrl = qrCode.data.toLowerCase().trim();
 
-                // DÉTECTION : Si le QR code contient un lien internet (http/https)
-                // Tu peux affiner en cherchant des mots précis comme "nitro", "gift", ou bloquer TOUS les QR codes.
-                if (detectedUrl.includes('http://') || detectedUrl.includes('https://')) {
+                // On attrape tout QR code qui contient un lien internet
+                if (detectedUrl.includes('http://') || detectedUrl.includes('https://') || detectedUrl.includes('discord.gg')) {
                     
-                    // 4. Action immédiate : Suppression de l'image suspecte
-                    await message.delete();
-                    
-                    // 5. Sanction : Timeout de 1 heure pour l'expéditeur
-                    await message.member.timeout(3600000, "Envoi de QR Code / Image publicitaire suspecte");
+                    // Action immédiate
+                    await message.delete().catch(() => {});
+                    await message.member.timeout(3600000, "Envoi de QR Code publicitaire / Scam").catch(() => {});
 
-                    // 6. Envoi du rapport dans le salon de logs
+                    // Envoi du Log
                     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
                     if (logChannel) {
                         await logChannel.send(
-                            `🖼️ **[LOG ANTI-QR CODE]** 🖼️\n` +
+                            `🖼️ **[LOG ANTI-QR CODE - DOUBLÉ]** 🖼️\n` +
                             `• **Auteur :** ${message.author} (${message.author.id})\n` +
                             `• **Salon :** ${message.channel}\n` +
-                            `• **Lien caché dans le QR Code :** \`${qrCode.data}\`\n` +
-                            `• **Action :** Image supprimée + Émetteur mute 1 heure.`
-                        );
+                            `• **Lien détecté :** \`${qrCode.data}\`\n` +
+                            `• **Action :** Image supprimée + Timeout 1h.`
+                        ).catch(() => {});
                     }
-                    break; // On arrête d'analyser ce message
+                    break;
                 }
             }
         } catch (err) {
-            // On ignore les erreurs de lecture si l'image est juste trop lourde ou corrompue
-            console.error("Erreur d'analyse de l'image QR Code :", err);
+            // Permet de voir dans la console Railway s'il manque un module ou s'il y a un vrai bug
+            console.error("Détails de l'analyse d'image :", err.message);
         }
     }
 });
