@@ -15,8 +15,10 @@ const client = new Client({
 // 🆔 ID de ton salon de logs secret
 const LOG_CHANNEL_ID = "78595694050410516"; 
 
-// Configuration Anti-Selfbot & Anti-Scam
-const antiPubMap = new Map();
+// Stockage pour surveiller la vitesse de changement de salon
+const historiqueSalons = new Map();
+
+// Configuration Anti-Scam (Arnaques Nitro/Crypto)
 const SCAM_RULES = [
   { regex: /n[i1]tr[o0]/i, points: 2 },       
   { regex: /fr[e3][e3]/i, points: 2 },        
@@ -62,7 +64,7 @@ client.on('guildMemberAdd', async (member) => {
 });
 
 // ==========================================
-// 2. PROTECTIONS PAR MESSAGE (SCAM, SELFBOT, QR-CODE)
+// 2. PROTECTIONS PAR MESSAGE
 // ==========================================
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
@@ -72,7 +74,7 @@ client.on('messageCreate', async (message) => {
     const contentLower = content ? content.toLowerCase().trim() : "";
     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
 
-    // --- A. DÉTECTION ANTI-QR CODE (IMAGES) ---
+    // --- A. DÉTECTION ANTI-QR CODE ---
     if (message.attachments.size > 0) {
         for (const [id, attachment] of message.attachments) {
             const isImage = /\.(png|jpe?g|webp)$/i.test(attachment.url);
@@ -109,7 +111,7 @@ client.on('messageCreate', async (message) => {
 
     if (!content) return;
 
-    // --- B. DÉTECTION ANTI-SCAM (MOTS CLÉS) ---
+    // --- B. DÉTECTION ANTI-SCAM ---
     let scamScore = 0;
     SCAM_RULES.forEach(rule => { if (rule.regex.test(contentLower)) scamScore += rule.points; });
     const upperCase = content.replace(/[^A-Z]/g, "").length;
@@ -131,37 +133,37 @@ client.on('messageCreate', async (message) => {
         } catch (err) { console.error(err); }
     }
 
-    // --- C. DÉTECTION ANTI-SELFBOT (SPAM EN BOUCLE) ---
-    if (contentLower.length >= 10) {
-        if (!antiPubMap.has(userId)) {
-            antiPubMap.set(userId, {
-                lastMessage: contentLower,
-                count: 1,
-                timer: setTimeout(() => antiPubMap.delete(userId), 15000)
-            });
-        } else {
-            const userData = antiPubMap.get(userId);
-            if (userData.lastMessage === contentLower) userData.count++;
-            else { userData.lastMessage = contentLower; userData.count = 1; }
+    // --- C. DETECTEUR SELFBOT MULTI-SALONS (SPAM LIBRE SUR UN SEUL SALON) ---
+    const NOW = Date.now();
 
-            if (userData.count >= 3) {
-                try {
-                    await message.delete().catch(() => {});
-                    await message.member.timeout(3600000, "Selfbot / Spam en boucle").catch(() => {});
+    if (!historiqueSalons.has(userId)) {
+        historiqueSalons.set(userId, { temps: NOW, salonId: message.channel.id });
+    } else {
+        const doubleCompte = historiqueSalons.get(userId);
+        const differenceTemps = NOW - doubleCompte.temps;
 
-                    if (logChannel) {
-                        await logChannel.send(
-                            `🚨 **[LOG ANTI-SELFBOT]** 🚨\n` +
-                            `• **Auteur :** ${message.author} (${message.author.tag})\n` +
-                            `• **Contenu du spam :** \`\`\`${content}\`\`\`\n` +
-                            `• **Action :** Messages nettoyés + Timeout 1h.`
-                        );
-                    }
-                    clearTimeout(userData.timer);
-                    antiPubMap.delete(userId);
-                } catch (err) { console.error(err); }
-            }
+        // Le spam dans le même salon est autorisé ! 
+        // Le bot ne s'active QUE si l'utilisateur change de salon en moins de 1.2 seconde.
+        if (doubleCompte.salonId !== message.channel.id && differenceTemps < 1200) {
+            try {
+                await message.delete().catch(() => {});
+                await message.member.timeout(3600000, "Comportement de Selfbot (Multi-salons instantané)").catch(() => {});
+
+                if (logChannel) {
+                    await logChannel.send(
+                        `🚨 **[SELFBOT MULTI-SALONS CONTRÉ]** 🚨\n` +
+                        `• **Utilisateur ciblé :** ${message.author} (${message.author.tag})\n` +
+                        `• **Vitesse de saut :** \`${differenceTemps}ms\`\n` +
+                        `• **Action :** Message supprimé + Timeout 1h.`
+                    );
+                }
+                
+                historiqueSalons.delete(userId);
+                return;
+            } catch (err) { console.error(err); }
         }
+
+        historiqueSalons.set(userId, { temps: NOW, salonId: message.channel.id });
     }
 });
 
