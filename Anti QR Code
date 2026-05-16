@@ -1,0 +1,77 @@
+const { Client, GatewayIntentBits } = require('discord.js');
+const axios = require('axios');
+const sharp = require('sharp');
+const jsQR = require('jsqr');
+
+const client = new Client({ 
+    intents: [
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildMessages, 
+        GatewayIntentBits.MessageContent 
+    ] 
+});
+
+// ID DU SALON DE LOGS (À REMPLACER)
+const LOG_CHANNEL_ID = "785955694050410516";
+
+client.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.guild) return;
+
+    // On vérifie si le message contient une pièce jointe (image)
+    if (message.attachments.size === 0) return;
+
+    for (const [id, attachment] of message.attachments) {
+        // On vérifie si le fichier est bien une image (png, jpg, jpeg, webp)
+        const isImage = /\.(png|jpe?g|webp)$/i.test(attachment.url);
+        if (!isImage) continue;
+
+        try {
+            // 1. Le bot télécharge l'image en mémoire
+            const response = await axios.get(attachment.url, { responseType: 'arraybuffer' });
+            const imageBuffer = Buffer.from(response.data);
+
+            // 2. On utilise 'sharp' pour extraire les pixels bruts de l'image pour que 'jsQR' puisse la lire
+            const { data, info } = await sharp(imageBuffer)
+                .ensureAlpha()
+                .raw()
+                .toBuffer({ resolveWithObject: true });
+
+            // 3. 'jsQR' scanne l'image à la recherche d'un QR Code
+            const qrCode = jsQR(new Uint8ClampedArray(data), info.width, info.height);
+
+            // Si un QR Code est trouvé dans l'image
+            if (qrCode && qrCode.data) {
+                const detectedUrl = qrCode.data.toLowerCase();
+
+                // DÉTECTION : Si le QR code contient un lien internet (http/https)
+                // Tu peux affiner en cherchant des mots précis comme "nitro", "gift", ou bloquer TOUS les QR codes.
+                if (detectedUrl.includes('http://') || detectedUrl.includes('https://')) {
+                    
+                    // 4. Action immédiate : Suppression de l'image suspecte
+                    await message.delete();
+                    
+                    // 5. Sanction : Timeout de 1 heure pour l'expéditeur
+                    await message.member.timeout(3600000, "Envoi de QR Code / Image publicitaire suspecte");
+
+                    // 6. Envoi du rapport dans le salon de logs
+                    const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+                    if (logChannel) {
+                        await logChannel.send(
+                            `🖼️ **[LOG ANTI-QR CODE]** 🖼️\n` +
+                            `• **Auteur :** ${message.author} (${message.author.id})\n` +
+                            `• **Salon :** ${message.channel}\n` +
+                            `• **Lien caché dans le QR Code :** \`${qrCode.data}\`\n` +
+                            `• **Action :** Image supprimée + Émetteur mute 1 heure.`
+                        );
+                    }
+                    break; // On arrête d'analyser ce message
+                }
+            }
+        } catch (err) {
+            // On ignore les erreurs de lecture si l'image est juste trop lourde ou corrompue
+            console.error("Erreur d'analyse de l'image QR Code :", err);
+        }
+    }
+});
+
+client.login(process.env.DISCORD_TOKEN);
