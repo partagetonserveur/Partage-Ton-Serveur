@@ -191,13 +191,13 @@ client.on('messageCreate', async (message) => {
         historiqueSalons.set(userId, { temps: NOW, salonId: message.channel.id });
     }
 
-    // --- E. SYSTEME INTERACTIF : IA DISCUSSION (SANS DELAI) ---
+    // --- E. SYSTEME INTERACTIF : IA DISCUSSION (INSTANTANÉ ET PRÉCIS) ---
     if (process.env.AI_CHANNEL_ID && message.channel.id === process.env.AI_CHANNEL_ID) {
         await message.channel.sendTyping();
 
         try {
             const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
-            const txt = String(message.content);
+            const txt = message.content.trim();
             const result = await model.generateContent(txt);
             
             const response = await result.response;
@@ -217,13 +217,23 @@ client.on('messageCreate', async (message) => {
             
             const errMsg = err.message ? String(err.message).toLowerCase() : "";
             
-            if (errMsg.includes("429") || errMsg.includes("too many requests") || errMsg.includes("quota")) {
-                return message.reply("⚠️ L'IA reçoit trop de requêtes d'un coup ! Patiente quelques secondes avant de renvoyer un message. ⏳");
+            // Si la clé API gratuite est totalement bloquée ou vide pour la journée :
+            if (errMsg.includes("quota exceeded") || errMsg.includes("exhausted")) {
+                return message.reply("🔴 Ta clé API Gemini gratuite a atteint sa limite maximale de messages pour aujourd'hui. Google réinitialisera ton compteur demain ! 📅");
             }
             
-            return message.reply(`❌ Erreur technique lors de la génération de la réponse.`);
+            // Si c'est juste un spam de requêtes simultanées :
+            if (errMsg.includes("429") || errMsg.includes("too many requests")) {
+                return message.reply("⚠️ L'IA reçoit trop de messages d'un coup. Attends quelques secondes ! ⏳");
+            }
+            
+            // Si c'est une autre erreur inconnue :
+            return message.reply(`❌ L'API Google rencontre un problème temporaire. Réessaie dans un instant.`);
         }
     }
 });
+
+client.on('error', console.error);
+process.on('unhandledRejection', console.error);
 
 client.login(process.env.DISCORD_TOKEN);
