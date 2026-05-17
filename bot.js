@@ -21,6 +21,10 @@ const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516";
 const historiqueSalons = new Map();
 const tempsArriveeMembres = new Map(); 
 
+// ⏳ Système de Cooldown pour protéger l'IA du blocage
+const cooldownsIA = new Map();
+const TEMPS_COOLDOWN = 3000; // 3 secondes d'attente minimum entre chaque message de l'IA
+
 client.on('ready', () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
 });
@@ -88,7 +92,6 @@ client.on('messageCreate', async (message) => {
                 const qrCode = jsQR(new Uint8ClampedArray(data), info.width, info.height);
 
                 if (qrCode && qrCode.data) {
-                    // Supprime le QR code peu importe le lien trouvé dedans pour une sécurité maximale
                     await message.delete().catch(() => {});
                     await message.member.timeout(3600000, "Envoi de QR Code suspect").catch(() => {});
 
@@ -100,7 +103,7 @@ client.on('messageCreate', async (message) => {
                             `• **Action :** Image supprimée + Timeout 1h.`
                         );
                     }
-                    return; // On stoppe tout ici, le message est détruit
+                    return; 
                 }
             } catch (err) {
                 console.error("Erreur scan QR Code :", err.message);
@@ -108,7 +111,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // Si le message contenait une image sans QR code ou s'il est vide, on n'active pas l'IA
+    // L'IA ignore le message s'il n'y a pas de texte ou s'il y a une image attachée
     if (!content || message.attachments.size > 0) return;
 
     // --- B. DÉTECTION ANTI-SCAM ---
@@ -194,11 +197,22 @@ client.on('messageCreate', async (message) => {
 
     // --- E. SYSTEME INTERACTIF : IA DISCUSSION ---
     if (process.env.AI_CHANNEL_ID && message.channel.id === process.env.AI_CHANNEL_ID) {
+        
+        // 🔒 Vérification anti-spam / anti-blocage pour le salon de l'IA
+        if (cooldownsIA.has(message.channel.id)) {
+            const tempsRestant = NOW - cooldownsIA.get(message.channel.id);
+            if (tempsRestant < TEMPS_COOLDOWN) {
+                return; // On ignore silencieusement pour ne pas spammer l'API Google
+            }
+        }
+
+        cooldownsIA.set(message.channel.id, NOW);
         await message.channel.sendTyping();
 
         try {
             const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
-            const result = await model.generateContent(message.content);
+            const txt = String(message.content);
+            const result = await model.generateContent(txt);
             
             const response = await result.response;
             const reponseIA = response.text();
@@ -213,13 +227,15 @@ client.on('messageCreate', async (message) => {
 
             return message.reply(reponseIA);
         } catch (err) {
-            console.error("Erreur IA :", err);
+            console.error("Erreur IA brute :", err);
             
-            if (err.message && (err.message.includes("429") || err.message.includes("quota"))) {
+            const errMsg = err.message ? String(err.message).toLowerCase() : "";
+            
+            if (errMsg.includes("429") || errMsg.includes("too many requests") || errMsg.includes("quota")) {
                 return message.reply("⚠️ L'IA reçoit trop de requêtes d'un coup ! Patiente quelques secondes avant de renvoyer un message. ⏳");
             }
             
-            return message.reply(`❌ Erreur technique IA : ${err.message || err}`);
+            return message.reply(`❌ Erreur technique lors de la génération de la réponse.`);
         }
     }
 });
