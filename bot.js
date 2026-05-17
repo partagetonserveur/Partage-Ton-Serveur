@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, AuditLogEvent } = require('discord.js');
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
-const { GoogleGenAI } = require('@google/generative-ai'); // Module IA
+const { GoogleGenerativeAI } = require('@google/generative-ai'); // Module IA
 
 const client = new Client({ 
     intents: [
@@ -14,7 +14,7 @@ const client = new Client({
 });
 
 // Initialisation de l'IA Google Gemini (utilise la variable Railway)
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const ai = new GoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // 🆔 ID de ton salon de logs secret (tu peux aussi le mettre en variable d'environnement si tu veux)
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
@@ -200,7 +200,7 @@ client.on('messageCreate', async (message) => {
         await message.channel.sendTyping();
 
         try {
-            let modelName = "gemini-2.5-flash";
+            let modelName = "gemini-1.5-flash";
             let model;
             
             // Premier essai avec le modèle récent
