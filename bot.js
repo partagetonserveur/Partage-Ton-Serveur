@@ -21,10 +21,6 @@ const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516";
 const historiqueSalons = new Map();
 const tempsArriveeMembres = new Map(); 
 
-// ⏳ Système de Cooldown pour protéger l'IA du blocage
-const cooldownsIA = new Map();
-const TEMPS_COOLDOWN = 3000; // 3 secondes d'attente minimum entre chaque message de l'IA
-
 client.on('ready', () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
 });
@@ -195,18 +191,8 @@ client.on('messageCreate', async (message) => {
         historiqueSalons.set(userId, { temps: NOW, salonId: message.channel.id });
     }
 
-    // --- E. SYSTEME INTERACTIF : IA DISCUSSION ---
+    // --- E. SYSTEME INTERACTIF : IA DISCUSSION (SANS DELAI) ---
     if (process.env.AI_CHANNEL_ID && message.channel.id === process.env.AI_CHANNEL_ID) {
-        
-        // 🔒 Vérification anti-spam / anti-blocage pour le salon de l'IA
-        if (cooldownsIA.has(message.channel.id)) {
-            const tempsRestant = NOW - cooldownsIA.get(message.channel.id);
-            if (tempsRestant < TEMPS_COOLDOWN) {
-                return; // On ignore silencieusement pour ne pas spammer l'API Google
-            }
-        }
-
-        cooldownsIA.set(message.channel.id, NOW);
         await message.channel.sendTyping();
 
         try {
