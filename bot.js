@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, AuditLogEvent } = require('discord.js');
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
+const { GoogleGenAI } = require('@google/generative-ai'); // Module IA
 
 const client = new Client({ 
     intents: [
@@ -12,28 +13,26 @@ const client = new Client({
     ] 
 });
 
-// 🆔 ID de ton salon de logs secret
-const LOG_CHANNEL_ID = "78595694050410516"; 
+// Initialisation de l'IA Google Gemini (utilise la variable Railway)
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Stockage pour surveiller la vitesse de changement de salon
+// 🆔 ID de ton salon de logs secret (tu peux aussi le mettre en variable d'environnement si tu veux)
+const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
+
+// Stockage pour surveiller la vitesse de changement de salon et l'anti-token
 const historiqueSalons = new Map();
-
-// Configuration Anti-Scam (Arnaques Nitro/Crypto)
-const SCAM_RULES = [
-  { regex: /n[i1]tr[o0]/i, points: 2 },       
-  { regex: /fr[e3][e3]/i, points: 2 },        
-  { regex: /cl[a4][i1]m/i, points: 3 },       
-  { regex: /g[i1]v[e3][a4]w[a4]y/i, points: 3 } 
-];
+const tempsArriveeMembres = new Map(); 
 
 client.on('ready', () => {
-    console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne et protège le serveur !`);
+    console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
 });
 
 // ==========================================
 // 1. PROTECTION : ANTI-BOT / ANTI-RAID
 // ==========================================
 client.on('guildMemberAdd', async (member) => {
+    tempsArriveeMembres.set(member.id, Date.now());
+
     if (!member.user.bot) return;
 
     try {
@@ -63,8 +62,12 @@ client.on('guildMemberAdd', async (member) => {
     }
 });
 
+client.on('guildMemberRemove', (member) => {
+    tempsArriveeMembres.delete(member.id);
+});
+
 // ==========================================
-// 2. PROTECTIONS PAR MESSAGE
+// 2. PROTECTIONS PAR MESSAGE & SYSTÈME IA
 // ==========================================
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
@@ -112,6 +115,13 @@ client.on('messageCreate', async (message) => {
     if (!content) return;
 
     // --- B. DÉTECTION ANTI-SCAM ---
+    const SCAM_RULES = [
+      { regex: /n[i1]tr[o0]/i, points: 2 },       
+      { regex: /fr[e3][e3]/i, points: 2 },        
+      { regex: /cl[a4][i1]m/i, points: 3 },       
+      { regex: /g[i1]v[e3][a4]w[a4]y/i, points: 3 } 
+    ];
+
     let scamScore = 0;
     SCAM_RULES.forEach(rule => { if (rule.regex.test(contentLower)) scamScore += rule.points; });
     const upperCase = content.replace(/[^A-Z]/g, "").length;
@@ -133,21 +143,40 @@ client.on('messageCreate', async (message) => {
         } catch (err) { console.error(err); }
     }
 
-    // --- C. DETECTEUR SELFBOT MULTI-SALONS (SPAM LIBRE SUR UN SEUL SALON) ---
+    // --- C. ANTI-TOKEN PAR COMPORTEMENT D'ENTRÉE (100ms) ---
     const NOW = Date.now();
+    if (tempsArriveeMembres.has(userId)) {
+        const tempsDepuisArrivee = NOW - tempsArriveeMembres.get(userId);
+        
+        if (tempsDepuisArrivee < 100) {
+            try {
+                await message.delete().catch(() => {});
+                await message.member.timeout(3600000, "Token / Script automatique détecté au join (Moins de 100ms)").catch(() => {});
+                
+                if (logChannel) {
+                    await logChannel.send(
+                        `🤖 **[ANTI-TOKEN COMPORTEMENTAL]** 🤖\n` +
+                        `• **Utilisateur ciblé :** ${message.author} (${message.author.tag})\n` +
+                        `• **Vitesse d'action :** \`${tempsDepuisArrivee}ms\` après l'entrée.\n` +
+                        `• **Action :** Message supprimé + Timeout 1h.`
+                    );
+                }
+                return;
+            } catch (err) { console.error(err); }
+        }
+    }
 
+    // --- D. DETECTEUR SELFBOT MULTI-SALONS (100ms) ---
     if (!historiqueSalons.has(userId)) {
         historiqueSalons.set(userId, { temps: NOW, salonId: message.channel.id });
     } else {
         const doubleCompte = historiqueSalons.get(userId);
         const differenceTemps = NOW - doubleCompte.temps;
 
-        // Le spam dans le même salon est autorisé ! 
-        // Le bot ne s'active QUE si l'utilisateur change de salon en moins de 1.2 seconde.
-        if (doubleCompte.salonId !== message.channel.id && differenceTemps < 1200) {
+        if (doubleCompte.salonId !== message.channel.id && differenceTemps < 100) {
             try {
                 await message.delete().catch(() => {});
-                await message.member.timeout(3600000, "Comportement de Selfbot (Multi-salons instantané)").catch(() => {});
+                await message.member.timeout(3600000, "Comportement de Selfbot (Changement de salon en moins de 100ms)").catch(() => {});
 
                 if (logChannel) {
                     await logChannel.send(
@@ -165,6 +194,29 @@ client.on('messageCreate', async (message) => {
 
         historiqueSalons.set(userId, { temps: NOW, salonId: message.channel.id });
     }
+
+    // --- E. SYSTEME INTERACTIF : IA DISCUSSION ---
+    // Le bot vérifie si le message est écrit dans le salon IA configuré sur Railway
+    if (process.env.AI_CHANNEL_ID && message.channel.id === process.env.AI_CHANNEL_ID) {
+        await message.channel.sendTyping(); // Petit effet "Le bot écrit..."
+
+        try {
+            const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
+            const result = await model.generateContent(message.content);
+            const reponseIA = result.response.text();
+
+            // Gestion de la limite des 2000 caractères de Discord
+            if (reponseIA.length > 2000) {
+                return message.reply(reponseIA.substring(0, 1999));
+            }
+
+            return message.reply(reponseIA);
+        } catch (err) {
+            console.error("Erreur IA :", err);
+            return message.reply("❌ Petit problème technique avec mon cerveau de robot !");
+        }
+    }
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
