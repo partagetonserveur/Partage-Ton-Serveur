@@ -201,7 +201,7 @@ client.on('messageCreate', async (message) => {
 
         try {
             // Utilisation directe du modèle stable gemini-pro
-            const model = ai.getGenerativeModel({ model: "gemini-pro" });
+            const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
             const result = await model.generateContent(message.content);
             
             const response = await result.response;
