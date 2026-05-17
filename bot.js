@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, AuditLogEvent } = require('discord.js');
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
-const { GoogleGenerativeAI } = require('@google/generative-ai'); // ✅ Importation corrigée
+const { GoogleGenerativeAI } = require('@google/generative-ai'); 
 
 const client = new Client({ 
     intents: [
@@ -13,13 +13,11 @@ const client = new Client({
     ] 
 });
 
-// ✅ Initialisation corrigée avec le bon constructeur
 const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // 🆔 ID de ton salon de logs secret
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 
-// Stockage pour surveiller la vitesse de changement de salon et l'anti-token
 const historiqueSalons = new Map();
 const tempsArriveeMembres = new Map(); 
 
@@ -90,21 +88,19 @@ client.on('messageCreate', async (message) => {
                 const qrCode = jsQR(new Uint8ClampedArray(data), info.width, info.height);
 
                 if (qrCode && qrCode.data) {
-                    const detectedUrl = qrCode.data.toLowerCase();
-                    if (detectedUrl.includes('http://') || detectedUrl.includes('https://') || detectedUrl.includes('discord.gg')) {
-                        await message.delete().catch(() => {});
-                        await message.member.timeout(3600000, "Envoi de QR Code suspect").catch(() => {});
+                    // Supprime le QR code peu importe le lien trouvé dedans pour une sécurité maximale
+                    await message.delete().catch(() => {});
+                    await message.member.timeout(3600000, "Envoi de QR Code suspect").catch(() => {});
 
-                        if (logChannel) {
-                            await logChannel.send(
-                                `🖼️ **[LOG ANTI-QR CODE]** 🖼️\n` +
-                                `• **Auteur :** ${message.author} (${message.author.tag})\n` +
-                                `• **Lien détecté dans le QR Code :** \`${qrCode.data}\`\n` +
-                                `• **Action :** Image supprimée + Timeout 1h.`
-                            );
-                        }
-                        return; 
+                    if (logChannel) {
+                        await logChannel.send(
+                            `🖼️ **[LOG ANTI-QR CODE]** 🖼️\n` +
+                            `• **Auteur :** ${message.author} (${message.author.tag})\n` +
+                            `• **Contenu détecté :** \`${qrCode.data}\`\n` +
+                            `• **Action :** Image supprimée + Timeout 1h.`
+                        );
                     }
+                    return; // On stoppe tout ici, le message est détruit
                 }
             } catch (err) {
                 console.error("Erreur scan QR Code :", err.message);
@@ -112,7 +108,8 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    if (!content) return;
+    // Si le message contenait une image sans QR code ou s'il est vide, on n'active pas l'IA
+    if (!content || message.attachments.size > 0) return;
 
     // --- B. DÉTECTION ANTI-SCAM ---
     const SCAM_RULES = [
@@ -200,7 +197,6 @@ client.on('messageCreate', async (message) => {
         await message.channel.sendTyping();
 
         try {
-            // ✅ Modèle forcé sur gemini-pro pour correspondre à ton module
             const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
             const result = await model.generateContent(message.content);
             
@@ -218,6 +214,11 @@ client.on('messageCreate', async (message) => {
             return message.reply(reponseIA);
         } catch (err) {
             console.error("Erreur IA :", err);
+            
+            if (err.message && (err.message.includes("429") || err.message.includes("quota"))) {
+                return message.reply("⚠️ L'IA reçoit trop de requêtes d'un coup ! Patiente quelques secondes avant de renvoyer un message. ⏳");
+            }
+            
             return message.reply(`❌ Erreur technique IA : ${err.message || err}`);
         }
     }
