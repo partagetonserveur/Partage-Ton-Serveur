@@ -201,7 +201,7 @@ client.on('messageCreate', async (message) => {
         await message.channel.sendTyping(); // Petit effet "Le bot écrit..."
 
         try {
-            const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+            const model = ai.getGenerativeModel({ model: "gemini-pro" });
             const result = await model.generateContent(message.content);
             const reponseIA = result.response.text();
 
