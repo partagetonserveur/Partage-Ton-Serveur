@@ -191,44 +191,31 @@ client.on('messageCreate', async (message) => {
         historiqueSalons.set(userId, { temps: NOW, salonId: message.channel.id });
     }
 
-    // --- E. SYSTEME INTERACTIF : IA DISCUSSION (INSTANTANÉ ET PRÉCIS) ---
+    // --- E. SYSTEME INTERACTIF : IA DISCUSSION (100% DIRECT) ---
     if (process.env.AI_CHANNEL_ID && message.channel.id === process.env.AI_CHANNEL_ID) {
         await message.channel.sendTyping();
 
         try {
             const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
-            const txt = message.content.trim();
+            const txt = String(message.content);
             const result = await model.generateContent(txt);
             
             const response = await result.response;
             const reponseIA = response.text();
 
-            if (!reponseIA) {
-                return message.reply("❌ L'IA a renvoyé une réponse vide.");
-            }
-
-            if (reponseIA.length > 2000) {
-                return message.reply(reponseIA.substring(0, 1999));
-            }
+            if (!reponseIA) return message.reply("❌ L'IA a renvoyé une réponse vide.");
+            if (reponseIA.length > 2000) return message.reply(reponseIA.substring(0, 1999));
 
             return message.reply(reponseIA);
         } catch (err) {
             console.error("Erreur IA brute :", err);
-            
             const errMsg = err.message ? String(err.message).toLowerCase() : "";
             
-            // Si la clé API gratuite est totalement bloquée ou vide pour la journée :
-            if (errMsg.includes("quota exceeded") || errMsg.includes("exhausted")) {
-                return message.reply("🔴 Ta clé API Gemini gratuite a atteint sa limite maximale de messages pour aujourd'hui. Google réinitialisera ton compteur demain ! 📅");
+            if (errMsg.includes("429") || errMsg.includes("too many requests") || errMsg.includes("quota")) {
+                return message.reply("⚠️ Limite de requêtes atteinte ! Attends quelques secondes avant de renvoyer un message. ⏳");
             }
             
-            // Si c'est juste un spam de requêtes simultanées :
-            if (errMsg.includes("429") || errMsg.includes("too many requests")) {
-                return message.reply("⚠️ L'IA reçoit trop de messages d'un coup. Attends quelques secondes ! ⏳");
-            }
-            
-            // Si c'est une autre erreur inconnue :
-            return message.reply(`❌ L'API Google rencontre un problème temporaire. Réessaie dans un instant.`);
+            return message.reply(`❌ Erreur technique lors de la génération de la réponse.`);
         }
     }
 });
@@ -237,3 +224,4 @@ client.on('error', console.error);
 process.on('unhandledRejection', console.error);
 
 client.login(process.env.DISCORD_TOKEN);
+
