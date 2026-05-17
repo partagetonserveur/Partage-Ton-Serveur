@@ -203,7 +203,7 @@ client.on('messageCreate', async (message) => {
         try {
             const model = ai.getGenerativeModel({ model: "gemini-pro" });
             const result = await model.generateContent(message.content);
-            const reponseIA = result.response.text();
+            const reponseIA = await result.response.text();
 
             // Gestion de la limite des 2000 caractères de Discord
             if (reponseIA.length > 2000) {
