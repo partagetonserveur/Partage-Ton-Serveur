@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, AuditLogEvent } = require('discord.js');
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
-const { GoogleGenerativeAI } = require('@google/generative-ai'); // Module IA
+const { GoogleGenerativeAI } = require('@google/generative-ai'); // Correction du nom du module ici
 
 const client = new Client({ 
     intents: [
@@ -13,10 +13,10 @@ const client = new Client({
     ] 
 });
 
-// Initialisation de l'IA Google Gemini (utilise la variable Railway)
+// Initialisation corrigée avec le bon constructeur
+const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-const ai = new GoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
-// 🆔 ID de ton salon de logs secret (tu peux aussi le mettre en variable d'environnement si tu veux)
+// 🆔 ID de ton salon de logs secret
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 
 // Stockage pour surveiller la vitesse de changement de salon et l'anti-token
@@ -200,21 +200,10 @@ client.on('messageCreate', async (message) => {
         await message.channel.sendTyping();
 
         try {
-            let modelName = "gemini-1.5-flash";
-            let model;
-            
-            // Premier essai avec le modèle récent
-            try {
-                model = ai.getGenerativeModel({ model: modelName });
-            } catch (initErr) {
-                // Système de secours si ton module est trop ancien pour le 2.5/1.5
-                modelName = "gemini-pro";
-                model = ai.getGenerativeModel({ model: modelName });
-            }
-
+            // Utilisation directe du modèle stable gemini-pro
+            const model = ai.getGenerativeModel({ model: "gemini-pro" });
             const result = await model.generateContent(message.content);
             
-            // Syntaxe sécurisée avec await pour récupérer la réponse textuelle
             const response = await result.response;
             const reponseIA = response.text();
 
@@ -229,7 +218,7 @@ client.on('messageCreate', async (message) => {
             return message.reply(reponseIA);
         } catch (err) {
             console.error("Erreur IA :", err);
-            // Renvoie la cause exacte sur Discord si le traitement échoue (ex: erreur 404, clé invalide)
+            // Écrit l'erreur exacte sur Discord pour pister les blocages restants
             return message.reply(`❌ Erreur technique IA : ${err.message || err}`);
         }
     }
