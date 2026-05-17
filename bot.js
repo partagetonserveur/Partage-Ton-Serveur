@@ -14,8 +14,8 @@ const client = new Client({
 });
 
 // Initialisation de l'IA Google Gemini (utilise la variable Railway)
-const ai = new GoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
 
+const ai = new GoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
 // 🆔 ID de ton salon de logs secret (tu peux aussi le mettre en variable d'environnement si tu veux)
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 
