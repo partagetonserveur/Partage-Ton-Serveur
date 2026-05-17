@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, AuditLogEvent } = require('discord.js');
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
-const { GoogleGenerativeAI } = require('@google/generative-ai'); // Correction du nom du module ici
+const { GoogleGenerativeAI } = require('@google/generative-ai'); // ✅ Importation corrigée
 
 const client = new Client({ 
     intents: [
@@ -13,7 +13,7 @@ const client = new Client({
     ] 
 });
 
-// Initialisation corrigée avec le bon constructeur
+// ✅ Initialisation corrigée avec le bon constructeur
 const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // 🆔 ID de ton salon de logs secret
@@ -200,8 +200,8 @@ client.on('messageCreate', async (message) => {
         await message.channel.sendTyping();
 
         try {
-            // Utilisation directe du modèle stable gemini-pro
-            const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+            // ✅ Modèle forcé sur gemini-pro pour correspondre à ton module
+            const model = ai.getGenerativeModel({ model: "gemini-pro" });
             const result = await model.generateContent(message.content);
             
             const response = await result.response;
@@ -218,7 +218,6 @@ client.on('messageCreate', async (message) => {
             return message.reply(reponseIA);
         } catch (err) {
             console.error("Erreur IA :", err);
-            // Écrit l'erreur exacte sur Discord pour pister les blocages restants
             return message.reply(`❌ Erreur technique IA : ${err.message || err}`);
         }
     }
