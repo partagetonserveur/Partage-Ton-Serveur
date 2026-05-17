@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, AuditLogEvent } = require('discord.js');
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
-const { GoogleGenerativeAI } = require('@google/generative-ai'); // Module IA
+const { GoogleGenAI } = require('@google/generative-ai'); // Module IA
 
 const client = new Client({ 
     intents: [
@@ -14,7 +14,7 @@ const client = new Client({
 });
 
 // Initialisation de l'IA Google Gemini (utilise la variable Railway)
-const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY );
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // 🆔 ID de ton salon de logs secret (tu peux aussi le mettre en variable d'environnement si tu veux)
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
@@ -196,16 +196,32 @@ client.on('messageCreate', async (message) => {
     }
 
     // --- E. SYSTEME INTERACTIF : IA DISCUSSION ---
-    // Le bot vérifie si le message est écrit dans le salon IA configuré sur Railway
     if (process.env.AI_CHANNEL_ID && message.channel.id === process.env.AI_CHANNEL_ID) {
-        await message.channel.sendTyping(); // Petit effet "Le bot écrit..."
+        await message.channel.sendTyping();
 
         try {
-            const model = ai.getGenerativeModel({ model: "gemini-pro" });
-            const result = await model.generateContent(message.content);
-            const reponseIA = await result.response.text();
+            let modelName = "gemini-2.5-flash";
+            let model;
+            
+            // Premier essai avec le modèle récent
+            try {
+                model = ai.getGenerativeModel({ model: modelName });
+            } catch (initErr) {
+                // Système de secours si ton module est trop ancien pour le 2.5/1.5
+                modelName = "gemini-pro";
+                model = ai.getGenerativeModel({ model: modelName });
+            }
 
-            // Gestion de la limite des 2000 caractères de Discord
+            const result = await model.generateContent(message.content);
+            
+            // Syntaxe sécurisée avec await pour récupérer la réponse textuelle
+            const response = await result.response;
+            const reponseIA = response.text();
+
+            if (!reponseIA) {
+                return message.reply("❌ L'IA a renvoyé une réponse vide.");
+            }
+
             if (reponseIA.length > 2000) {
                 return message.reply(reponseIA.substring(0, 1999));
             }
@@ -213,10 +229,10 @@ client.on('messageCreate', async (message) => {
             return message.reply(reponseIA);
         } catch (err) {
             console.error("Erreur IA :", err);
-            return message.reply("❌ Petit problème technique avec mon cerveau de robot !");
+            // Renvoie la cause exacte sur Discord si le traitement échoue (ex: erreur 404, clé invalide)
+            return message.reply(`❌ Erreur technique IA : ${err.message || err}`);
         }
     }
 });
 
 client.login(process.env.DISCORD_TOKEN);
-
