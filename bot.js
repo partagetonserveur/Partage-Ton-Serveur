@@ -357,5 +357,3 @@ client.on('error', console.error);
 process.on('unhandledRejection', console.error);
 
 client.login(process.env.DISCORD_TOKEN);
-C juste pour que je copie colle tkt 
-
