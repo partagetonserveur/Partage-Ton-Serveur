@@ -172,7 +172,7 @@ client.on('interactionCreate', async (interaction) => {
             `• Suppression des injections de \`@everyone\` / \`@here\` par modification`;
 
         const statusEmbed = new EmbedBuilder()
-            .setColor('#2f3136')
+            .setColor('#ffa500')
             .setTitle('🛡️ FORTERESSE RAILWAY - TABLEAU DE BORD')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
@@ -394,7 +394,7 @@ async function verifierBioMemBRE(member) {
 }
 
 // ==========================================
-// FONCTION DE SÉCURITÉ POUR ANALYSER LE TEXTE
+// 🛡️ FONCTION DE SÉCURITÉ POUR ANALYSER LE TEXTE
 // ==========================================
 async function verifierContenuMessage(message, content, typeAction = "ENVOI") {
     if (!content || message.author.bot || !message.guild) return false;
@@ -526,7 +526,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
 });
 
 // ==========================================
-// PROTECTIONS PAR MESSAGE CRÉÉ + STATS DIRECT
+// 🛡️ PROTECTIONS PAR MESSAGE CRÉÉ + STATS DIRECT
 // ==========================================
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
