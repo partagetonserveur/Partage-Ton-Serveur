@@ -52,7 +52,7 @@ const regexLienGeneral = /https?:\/\/[^\s]+/gi;
 const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|media)|discordapp\.com)/i;
 
 // ==========================================
-// 🔄 FONCTION DE SCAN DE L'HISTORIQUE (COMPLET - TOUS SALONS)
+// 🔄 FONCTION DE SCAN DE L'HISTORIQUE CORRIGÉE & SÉCURISÉE
 // ==========================================
 async function scannerHistoriqueMessages() {
     if (scanEnCours) return;
@@ -71,22 +71,27 @@ async function scannerHistoriqueMessages() {
     for (const [channelId, channel] of client.channels.cache) {
         if (!channel.isTextBased() || channel.isThread()) continue;
 
+        // Évite le crash si le bot n'a pas les permissions requises dans le salon
+        const permissions = channel.permissionsFor(client.user);
+        if (!permissions || !permissions.has('ViewChannel') || !permissions.has('ReadMessageHistory')) continue;
+
         try {
             let lastId = null;
-            let options = { limit: 100 };
 
             while (true) {
+                let options = { limit: 100 };
                 if (lastId) options.before = lastId;
 
-                // On récupère uniquement les IDs pour ne pas surcharger la RAM de Railway avec des millions de messages complets
                 const messages = await channel.messages.fetch(options).catch(() => null);
                 if (!messages || messages.size === 0) break;
 
                 compteurLocal += messages.size;
+                // Accumulation en temps réel pour l'affichage dynamique de la commande /status
+                totalMessagesServeur = compteurLocal; 
                 lastId = messages.last().id;
 
-                // Anti Rate-Limit Discord (200ms)
-                await new Promise(resolve => setTimeout(resolve, 200));
+                // Anti Rate-Limit Discord (250ms pour rester sous les radars)
+                await new Promise(resolve => setTimeout(resolve, 250));
 
                 if (messages.size < 100) break;
             }
@@ -119,7 +124,7 @@ client.on('ready', async () => {
     const commands = [
         new SlashCommandBuilder()
             .setName('status')
-            .setDescription('Affiche l’état de santé du bot et les statistiques de la forteresse Railway.')
+            .setDescription('Affiche l’état de santé du bot et les statistiques de la forteresse.')
     ].map(command => command.toJSON());
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN || client.token);
@@ -137,7 +142,7 @@ client.on('ready', async () => {
 });
 
 // ==========================================
-// 📊 LOGIQUE DE LA SLASH COMMAND /status
+// 📊 LOGIQUE DE LA SLASH COMMAND /status CORRIGÉE
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
@@ -155,8 +160,9 @@ client.on('interactionCreate', async (interaction) => {
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
         const totalMembres = client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
 
+        // Affiche la progression en temps réel si le scan tourne en tâche de fond
         const affichageMessages = scanEnCours 
-            ? `🔄 Calcul en cours... (~${totalMessagesServeur.toLocaleString()})` 
+            ? `🔄 Calcul en cours... (\`${totalMessagesServeur.toLocaleString()}\` scannés)` 
             : `\`${totalMessagesServeur.toLocaleString()}\` messages`;
 
         const texteProtections = 
@@ -173,12 +179,12 @@ client.on('interactionCreate', async (interaction) => {
 
         const statusEmbed = new EmbedBuilder()
             .setColor('#ffa500')
-            .setTitle('🛡️ FORTERESSE RAILWAY - TABLEAU DE BORD')
+            .setTitle('🛡️ TABLEAU DE BORD DE SÉCURITÉ')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
                 { name: '⚡ Statut du Système', value: '🟢 Fonctionnel & Actif', inline: true },
                 { name: '📡 Latence (Ping)', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
-                { name: '💾 Mémoire RAM (Railway)', value: `\`${usageMemoire} MB\` / 512 MB`, inline: true },
+                { name: '💾 Mémoire RAM', value: `\`${usageMemoire} MB\` / 512 MB`, inline: true },
                 { name: '👥 Protection Active', value: `\`${totalMembres} membres\``, inline: true },
                 { name: '📊 Total Messages Scannés', value: affichageMessages, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${uptimeString}\``, inline: false },
@@ -531,7 +537,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
-    // Compteur en temps réel
+    // Compteur en temps réel réactif
     totalMessagesServeur++;
 
     const userId = message.author.id;
@@ -611,7 +617,8 @@ client.on('messageCreate', async (message) => {
         if (doubleCompte.salonId !== message.channel.id && (NOW - doubleCompte.temps) < 100) {
             try {
                 await message.delete().catch(() => {});
-                await member.timeout(3600000, "Selfbot").catch(() => {});
+                const member = message.member || await message.guild.members.fetch(userId).catch(() => null);
+                if (member) await member.timeout(3600000, "Selfbot").catch(() => {});
                 historiqueSalons.delete(userId);
                 return;
             } catch (err) { console.error(err); }
