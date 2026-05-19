@@ -16,7 +16,7 @@ const client = new Client({
     ] 
 });
 
-// 🆔 ID de ton salon de logs secret (Bien configuré)
+// 🆔 ID de ton salon de logs secret
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 
 const historiqueSalons = new Map();
@@ -52,19 +52,18 @@ const regexLienGeneral = /https?:\/\/[^\s]+/gi;
 const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|media)|discordapp\.com)/i;
 
 // ==========================================
-// 🔄 FONCTION DE SCAN DE L'HISTORIQUE
+// 🔄 FONCTION DE SCAN DE L'HISTORIQUE (COMPLET - TOUS SALONS)
 // ==========================================
 async function scannerHistoriqueMessages() {
     if (scanEnCours) return;
     scanEnCours = true;
     
-    console.log("⏳ [STATISTIQUES] Début du scan de l'historique des messages du serveur...");
+    console.log("⏳ [STATISTIQUES] Début du scan de l'historique global (Tous les salons)...");
     
-    // Envoi d'un message dans ton salon de logs au début du scan
     const premierServeur = client.guilds.cache.first();
     const logChannel = premierServeur?.channels.cache.get(LOG_CHANNEL_ID);
     if (logChannel) {
-        await logChannel.send(`📊 **[STATISTIQUES]** Le bot démarre l'analyse et le comptage de tout l'historique des messages du serveur...`).catch(() => {});
+        await logChannel.send(`📊 **[STATISTIQUES]** Le bot démarre l'analyse et le comptage de TOUT l'historique des messages (y compris ce salon de logs)...`).catch(() => {});
     }
     
     let compteurLocal = 0;
@@ -79,15 +78,17 @@ async function scannerHistoriqueMessages() {
             while (true) {
                 if (lastId) options.before = lastId;
 
+                // On récupère uniquement les IDs pour ne pas surcharger la RAM de Railway avec des millions de messages complets
                 const messages = await channel.messages.fetch(options).catch(() => null);
                 if (!messages || messages.size === 0) break;
 
                 compteurLocal += messages.size;
                 lastId = messages.last().id;
 
+                // Anti Rate-Limit Discord (200ms)
                 await new Promise(resolve => setTimeout(resolve, 200));
 
-                if (messages.size < 100 || compteurLocal > 500000) break;
+                if (messages.size < 100) break;
             }
         } catch (err) {
             console.error(`Impossible de scanner le salon ${channel.name}:`, err.message);
@@ -96,11 +97,10 @@ async function scannerHistoriqueMessages() {
 
     totalMessagesServeur = compteurLocal;
     scanEnCours = false;
-    console.log(`✅ [STATISTIQUES] Scan terminé ! ${totalMessagesServeur} messages trouvés dans l'historique.`);
+    console.log(`✅ [STATISTIQUES] Scan terminé ! ${totalMessagesServeur} messages trouvés au total.`);
     
-    // Envoi d'un message de confirmation dans ton salon de logs à la fin du scan
     if (logChannel) {
-        await logChannel.send(`✅ **[STATISTIQUES]** Scan de l'historique terminé avec succès !\n• Total enregistré : \`${totalMessagesServeur.toLocaleString()}\` messages.`).catch(() => {});
+        await logChannel.send(`✅ **[STATISTIQUES]** Scan de l'historique global terminé avec succès !\n• Total général enregistré : \`${totalMessagesServeur.toLocaleString()}\` messages.`).catch(() => {});
     }
 }
 
@@ -111,7 +111,7 @@ client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
     console.log(`🛡️ PROTECTION MAXIMALE ACCÈS SÉCURISÉ`);
 
-    // ⏳ SÉCURITÉ TIMING : On attend 5 secondes que Discord charge bien les salons
+    // ⏳ Pause de 5 secondes pour charger le cache Discord avant de lancer le gros scan
     setTimeout(() => {
         scannerHistoriqueMessages();
     }, 5000);
@@ -156,7 +156,7 @@ client.on('interactionCreate', async (interaction) => {
         const totalMembres = client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
 
         const affichageMessages = scanEnCours 
-            ? `🔄 Calcul en cours... (~${totalMessagesServeur})` 
+            ? `🔄 Calcul en cours... (~${totalMessagesServeur.toLocaleString()})` 
             : `\`${totalMessagesServeur.toLocaleString()}\` messages`;
 
         const texteProtections = 
@@ -172,7 +172,7 @@ client.on('interactionCreate', async (interaction) => {
             `• Suppression des injections de \`@everyone\` / \`@here\` par modification`;
 
         const statusEmbed = new EmbedBuilder()
-            .setColor('#ffa500')
+            .setColor('#2f3136')
             .setTitle('🛡️ FORTERESSE RAILWAY - TABLEAU DE BORD')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
@@ -394,7 +394,7 @@ async function verifierBioMemBRE(member) {
 }
 
 // ==========================================
-// 🛡️ FONCTION DE SÉCURITÉ POUR ANALYSER LE TEXTE
+// FONCTION DE SÉCURITÉ POUR ANALYSER LE TEXTE
 // ==========================================
 async function verifierContenuMessage(message, content, typeAction = "ENVOI") {
     if (!content || message.author.bot || !message.guild) return false;
@@ -526,7 +526,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
 });
 
 // ==========================================
-// 🛡️ PROTECTIONS PAR MESSAGE CRÉÉ + STATS DIRECT
+// PROTECTIONS PAR MESSAGE CRÉÉ + STATS DIRECT
 // ==========================================
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
@@ -611,7 +611,7 @@ client.on('messageCreate', async (message) => {
         if (doubleCompte.salonId !== message.channel.id && (NOW - doubleCompte.temps) < 100) {
             try {
                 await message.delete().catch(() => {});
-                await message.member.timeout(3600000, "Selfbot").catch(() => {});
+                await member.timeout(3600000, "Selfbot").catch(() => {});
                 historiqueSalons.delete(userId);
                 return;
             } catch (err) { console.error(err); }
