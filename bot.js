@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, AuditLogEvent } = require('discord.js');
+const { Client, GatewayIntentBits, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
@@ -8,9 +8,11 @@ const client = new Client({
         GatewayIntentBits.Guilds, 
         GatewayIntentBits.GuildMessages, 
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMembers, 
         GatewayIntentBits.GuildWebhooks,
-        GatewayIntentBits.GuildMessageReactions // 🔍 Requis pour l'Anti-Spam de Réactions
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.GuildModeration, 
+        GatewayIntentBits.GuildPresences 
     ] 
 });
 
@@ -20,8 +22,15 @@ const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516";
 const historiqueSalons = new Map();
 const tempsArriveeMembres = new Map(); 
 const historiqueReactions = new Map(); 
+const historiqueModifsServeur = new Map(); 
 
-// RÈGLES ANTI-SCAM COMMUNES (Utilisées pour les nouveaux messages ET les modifications)
+// Mémoires pour l'anti-sabotage
+const historiqueCreationSalons = new Map(); 
+const historiqueBansModo = new Map(); 
+const historiqueSuppressionSalons = new Map(); 
+const historiqueKicksModo = new Map();       
+
+// RÈGLES ANTI-SCAM COMMUNES
 const SCAM_RULES = [
   { regex: /n[i1]tr[o0]/i, points: 2 },       
   { regex: /fr[e3][e3]/i, points: 2 },        
@@ -29,16 +38,291 @@ const SCAM_RULES = [
   { regex: /g[i1]v[e3][a4]w[a4]y/i, points: 3 } 
 ];
 
-// REGEX ANTI-PHISHING COMMUNE (Détection des faux liens)
+// REGEX ANTI-PHISHING & MALWARE
 const regexPhishing = /(diiscord|disc0rd|discord-app|discord-gift|dlscord|discordg|free-nitro|nitro-gift|steam-gift|crypto-claim).*\.(com|ru|xyz|org|net|info|gift|click|link|apps)/i;
+const regexMalware = /(https?:\/\/[^\s]+)\.(zip|rar|7z|tar|gz|exe|scr|bat|cmd|vbs|msi)(?=\s|$)/i;
+const sitesHebergementSuspects = /(mediafire|mega\.nz\/file|anonfiles|bayfiles|zippyshare|dropapk|uploadocean)/i;
 
-client.on('ready', () => {
+// REGEX POUR SCANNER LES BIOS
+const regexLienGeneral = /https?:\/\/[^\s]+/gi;
+const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|media)|discordapp\.com)/i;
+
+// ==========================================
+// 🧠 ENREGISTREMENT DE LA SLASH COMMAND
+// ==========================================
+client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
-    console.log(`🛡️ Sécurité active : Anti-Phishing, Anti-Modification, Fichiers, Zalgo, Réactions, Webhooks, Raid...`);
+    console.log(`🛡️ PROTECTION MAXIMALE ACCÈS SÉCURISÉ`);
+
+    // Configuration de la commande /status
+    const commands = [
+        new SlashCommandBuilder()
+            .setName('status')
+            .setDescription('Affiche l’état de santé du bot et les statistiques de la forteresse Railway.')
+    ].map(command => command.toJSON());
+
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN || client.token);
+
+    try {
+        console.log('⏳ Enregistrement de la commande Slash /status...');
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands },
+        );
+        console.log('✅ La Slash Command /status a été enregistrée avec succès au niveau global !');
+    } catch (error) {
+        console.error("Erreur lors de l'enregistrement de la Slash Command :", error);
+    }
 });
 
 // ==========================================
-// FONCTION DE SÉCURITÉ COMMUNE POUR ANALYSER LE TEXTE
+// 📊 LOGIQUE DE LA SLASH COMMAND /status
+// ==========================================
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+
+    if (interaction.commandName === 'status') {
+        // Calcul du temps d'allumage (Uptime)
+        let totalSeconds = (client.uptime / 1000);
+        let days = Math.floor(totalSeconds / 86400);
+        totalSeconds %= 86400;
+        let hours = Math.floor(totalSeconds / 3600);
+        totalSeconds %= 3600;
+        let minutes = Math.floor(totalSeconds / 60);
+        let seconds = Math.floor(totalSeconds % 60);
+        const uptimeString = `${days}j ${hours}h ${minutes}m ${seconds}s`;
+
+        // Calcul de la RAM consommée sur Railway
+        const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
+
+        // Compter le total de membres protégés sur tous les serveurs du bot
+        const totalMembres = client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
+
+        // Création d'un Embed stylé de monitoring
+        const statusEmbed = new EmbedBuilder()
+            .setColor('#2f3136') // Couleur sombre type "sécurité"
+            .setTitle('🛡️ FORTERESSE RAILWAY - TABLEAU DE BORD')
+            .setThumbnail(client.user.displayAvatarURL())
+            .addFields(
+                { name: '⚡ Statut du Système', value: '🟢 Fonctionnel & Actif', inline: true },
+                { name: '📡 Latence (Ping)', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
+                { name: '💾 Mémoire RAM (Railway)', value: `\`${usageMemoire} MB\` / 512 MB`, inline: true },
+                { name: '👥 Protection Active', value: `\`${totalMembres} membres\` sécurisés`, inline: true },
+                { name: '⏱️ Temps de fonctionnement', value: `\`${uptimeString}\``, inline: false },
+                { name: '⚙️ Sécurités Armées', value: '• Anti-Nuke (Ban, Kick, Salons, Webhooks)\n• Anti-Phishing & Anti-Malware\n• Anti-QR Code Radical (H24)\n• Anti-Ghost Mention (@everyone)' }
+            )
+            .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+            .setTimestamp();
+
+        // Envoi de la réponse
+        await interaction.reply({ embeds: [statusEmbed] });
+    }
+});
+
+// ==========================================
+// 🛡️ PROTECTION ANTI-BAN EN MASSE
+// ==========================================
+client.on('guildBanAdd', async (ban) => {
+    try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const fetchedLogs = await ban.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.MemberBanAdd });
+        const banLog = fetchedLogs.entries.first();
+        if (!banLog) return;
+
+        const { executor } = banLog;
+        if (executor.id === client.user.id || executor.id === ban.guild.ownerId) return;
+
+        const NOW = Date.now();
+        if (!historiqueBansModo.has(executor.id)) historiqueBansModo.set(executor.id, []);
+
+        const bansRecentes = historiqueBansModo.get(executor.id).filter(time => NOW - time < 10000); 
+        bansRecentes.push(NOW);
+        historiqueBansModo.set(executor.id, bansRecentes);
+
+        if (bansRecentes.length > 2) {
+            const memberStaff = await ban.guild.members.fetch(executor.id).catch(() => null);
+            if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error); 
+
+            const logChannel = ban.guild.channels.cache.get(LOG_CHANNEL_ID);
+            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : BAN]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Action :** Sabotage par bans.\n• **Contre-mesure :** Rôles supprimés.`);
+            historiqueBansModo.delete(executor.id);
+        }
+    } catch (err) { console.error(err); }
+});
+
+// ==========================================
+// 🛡️ PROTECTION ANTI-KICK EN MASSE
+// ==========================================
+client.on('guildMemberRemove', async (member) => {
+    try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const fetchedLogs = await member.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.MemberKick });
+        const kickLog = fetchedLogs.entries.first();
+        if (!kickLog) return;
+
+        const { executor, target } = kickLog;
+        if (target.id !== member.id || executor.id === client.user.id || executor.id === member.guild.ownerId) return;
+
+        const NOW = Date.now();
+        if (!historiqueKicksModo.has(executor.id)) historiqueKicksModo.set(executor.id, []);
+
+        const kicksRecents = historiqueKicksModo.get(executor.id).filter(time => NOW - time < 10000); 
+        kicksRecents.push(NOW);
+        historiqueKicksModo.set(executor.id, kicksRecents);
+
+        if (kicksRecents.length > 2) {
+            const memberStaff = await member.guild.members.fetch(executor.id).catch(() => null);
+            if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
+
+            const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
+            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : KICK]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Action :** Sabotage par kicks.\n• **Contre-mesure :** Rôles supprimés.`);
+            historiqueKicksModo.delete(executor.id);
+        }
+    } catch (err) { console.error(err); }
+});
+
+// ==========================================
+// 🛡️ PROTECTION ANTI-CHANNEL FLOOD (CREATION)
+// ==========================================
+client.on('channelCreate', async (channel) => {
+    if (!channel.guild) return;
+    try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const fetchedLogs = await channel.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.ChannelCreate });
+        const channelLog = fetchedLogs.entries.first();
+        if (!channelLog) return;
+
+        const { executor } = channelLog;
+        if (executor.id === client.user.id || executor.id === channel.guild.ownerId) return;
+
+        const NOW = Date.now();
+        if (!historiqueCreationSalons.has(executor.id)) historiqueCreationSalons.set(executor.id, []);
+
+        const creationsRecentes = historiqueCreationSalons.get(executor.id).filter(time => NOW - time < 10000); 
+        creationsRecentes.push(NOW);
+        historiqueCreationSalons.set(executor.id, creationsRecentes);
+
+        if (creationsRecentes.length > 3) {
+            await channel.delete("Anti-Channel-Flood").catch(() => {});
+            const memberStaff = await channel.guild.members.fetch(executor.id).catch(() => null);
+            if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
+
+            const logChannel = channel.guild.channels.cache.get(LOG_CHANNEL_ID);
+            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : FLOOD CREATION]** 🚨🚨\n• **Auteur :** ${executor}\n• **Contre-mesure :** Salon supprimé + Rôles retirés.`);
+            historiqueCreationSalons.delete(executor.id);
+        }
+    } catch (err) { console.error(err); }
+});
+
+// ==========================================
+// 🛡️ PROTECTION ANTI-MASS DELETE (SUPPRESSION DE SALONS)
+// ==========================================
+client.on('channelDelete', async (channel) => {
+    if (!channel.guild) return;
+    try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const fetchedLogs = await channel.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.ChannelDelete });
+        const deleteLog = fetchedLogs.entries.first();
+        if (!deleteLog) return;
+
+        const { executor } = deleteLog;
+        if (executor.id === client.user.id || executor.id === channel.guild.ownerId) return;
+
+        const NOW = Date.now();
+        if (!historiqueSuppressionSalons.has(executor.id)) historiqueSuppressionSalons.set(executor.id, []);
+
+        const suppressionsRecentes = historiqueSuppressionSalons.get(executor.id).filter(time => NOW - time < 10000); 
+        suppressionsRecentes.push(NOW);
+        historiqueSuppressionSalons.set(executor.id, suppressionsRecentes);
+
+        if (suppressionsRecentes.length > 2) {
+            const memberStaff = await channel.guild.members.fetch(executor.id).catch(() => null);
+            if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
+
+            const logChannel = channel.guild.channels.cache.get(LOG_CHANNEL_ID);
+            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : DESTRUCTION SALONS]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles retirés.`);
+            historiqueSuppressionSalons.delete(executor.id);
+        }
+    } catch (err) { console.error(err); }
+});
+
+// ==========================================
+// 🛡️ PROTECTION ANTI-MODIFICATION DE SERVEUR
+// ==========================================
+client.on('guildUpdate', async (oldGuild, newGuild) => {
+    try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const fetchedLogs = await newGuild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.GuildUpdate });
+        const updateLog = fetchedLogs.entries.first();
+        if (!updateLog) return;
+
+        const { executor } = updateLog;
+        if (executor.id === client.user.id || executor.id === newGuild.ownerId) return;
+
+        const logChannel = newGuild.channels.cache.get(LOG_CHANNEL_ID);
+        const NOW = Date.now();
+
+        if (!historiqueModifsServeur.has(executor.id)) historiqueModifsServeur.set(executor.id, []);
+        const modifsRecentes = historiqueModifsServeur.get(executor.id).filter(time => NOW - time < 10000); 
+        modifsRecentes.push(NOW);
+        historiqueModifsServeur.set(executor.id, modifsRecentes);
+
+        if (modifsRecentes.length === 1) {
+            await newGuild.edit({
+                name: oldGuild.name,
+                icon: oldGuild.iconURL({ dynamic: true }) || null,
+                banner: oldGuild.bannerURL() || null,
+                reason: "Restauration de sécurité"
+            }).catch(console.error);
+            if (logChannel) await logChannel.send(`⚠️ **[MODIFICATION SERVEUR]** ⚠️\n• **Modérateur :** ${executor}\n• **Action :** Restauré (Avertissement 1/2).`);
+            return;
+        }
+
+        if (modifsRecentes.length >= 2) {
+            await newGuild.edit({
+                name: oldGuild.name,
+                icon: oldGuild.iconURL({ dynamic: true }) || null,
+                banner: oldGuild.bannerURL() || null,
+                reason: "Raid détecté"
+            }).catch(console.error);
+
+            const memberStaff = await newGuild.members.fetch(executor.id).catch(() => null);
+            if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
+
+            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE VANDALISME]** 🚨🚨\n• **Auteur :** ${executor}\n• **Action :** Rôles supprimés.`);
+            historiqueModifsServeur.delete(executor.id);
+        }
+    } catch (err) { console.error(err); }
+});
+
+// ==========================================
+// 🛡️ PROTECTION SÉCURITÉ : BIOS DES MEMBRES
+// ==========================================
+async function verifierBioMemBRE(member) {
+    if (!member || member.user.bot) return;
+    const userComplet = await member.user.fetch({ force: true }).catch(() => null);
+    if (!userComplet) return;
+    
+    const bio = userComplet.aboutMe || ""; 
+    if (!bio) return;
+
+    const liensTrouves = bio.match(regexLienGeneral);
+    if (!liensTrouves) return;
+
+    for (const lien of liensTrouves) {
+        if (regexLienDiscordOfficiel.test(lien)) continue;
+        try {
+            const guild = member.guild;
+            const logChannel = guild.channels.cache.get(LOG_CHANNEL_ID);
+            await member.kick("Anti-Bio Malveillante").catch(() => {});
+            if (logChannel) await logChannel.send(`🛡️ **[ANTI-BIO MALVEILLANTE]** 🛡️\n• **Utilisateur expulsé :** ${member.user}\n• **Lien :** \`${lien}\``);
+            break;
+        } catch (err) { console.error(err); }
+    }
+}
+
+// ==========================================
+// FONCTION DE SÉCURITÉ POUR ANALYSER LE TEXTE
 // ==========================================
 async function verifierContenuMessage(message, content, typeAction = "ENVOI") {
     if (!content || message.author.bot || !message.guild) return false;
@@ -49,189 +333,123 @@ async function verifierContenuMessage(message, content, typeAction = "ENVOI") {
     const contentLower = content.toLowerCase().trim();
     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
 
-    // 1. Protection Anti-Phishing
     if (regexPhishing.test(contentLower)) {
         try {
             await message.delete().catch(() => {});
-            await message.member.timeout(3600000, `Phishing détecté lors d'un(e) ${typeAction}`).catch(() => {});
-
-            if (logChannel) {
-                await logChannel.send(
-                    `💀 **[ALERTE CYBER-SÉCURITÉ : PHISHING BLOQUÉ (${typeAction})]** 💀\n` +
-                    `• **Auteur :** ${message.author} (${message.author.tag})\n` +
-                    `• **Contenu intercepté :** \`${content}\`\n` +
-                    `• **Action :** Message supprimé + Timeout 1h.`
-                );
-            }
+            await message.member.timeout(3600000, `Phishing`).catch(() => {});
+            if (logChannel) await logChannel.send(`💀 **[PHISHING BLOQUÉ]** 💀\n• **Auteur :** ${message.author}`);
             return true; 
         } catch (err) { console.error(err); }
     }
 
-    // 2. Protection Anti-Scam (Calcul de Score)
-    let scamScore = 0;
-    SCAM_RULES.forEach(rule => { if (rule.regex.test(contentLower)) scamScore += rule.points; });
-    const upperCase = content.replace(/[^A-Z]/g, "").length;
-    if (upperCase > content.length * 0.7 && content.length > 15) scamScore += 2;
-
-    if (scamScore >= 8) {
+    if (regexMalware.test(contentLower) || sitesHebergementSuspects.test(contentLower)) {
         try {
             await message.delete().catch(() => {});
-            if (logChannel) {
-                await logChannel.send(
-                    `⚠️ **[LOG ANTI-SCAM (${typeAction})]** ⚠️\n` +
-                    `• **Auteur :** ${message.author} (${message.author.tag})\n` +
-                    `• **Score :** \`${scamScore}/10\`\n` +
-                    `• **Action :** Message effacé automatiquement.`
-                );
-            }
-            return true; 
-        } catch (err) { console.error(err); }
-    }
-
-    // 3. Protection Anti-Zalgo (Texte Crash)
-    const regexZalgo = /[\u0300-\u036f]{4,}/g; 
-    if (regexZalgo.test(content)) {
-        try {
-            await message.delete().catch(() => {});
-            if (logChannel) {
-                await logChannel.send(
-                    `💥 **[LOG ANTI-ZALGO (${typeAction})]** 💥\n` +
-                    `• **Auteur :** ${message.author} (${message.author.tag})\n` +
-                    `• **Action :** Message de caractères crash supprimé.`
-                );
-            }
+            await message.member.timeout(3600000, "Lien Malware").catch(() => {});
+            if (logChannel) await logChannel.send(`🦠 **[LIEN MALWARE REJETÉ]** 🦠\n• **Auteur :** ${message.author}`);
             return true;
         } catch (err) { console.error(err); }
+    }
+
+    if (content.length > 20) {
+        const lettresUniquement = content.replace(/[^a-zA-Z]/g, "");
+        if (lettresUniquement.length > 0) {
+            const majuscules = lettresUniquement.replace(/[^A-Z]/g, "").length;
+            const pourcentageMaj = (majuscules / lettresUniquement.length) * 100;
+            if (pourcentageMaj > 85) {
+                try { await message.delete().catch(() => {}); return true; } catch (err) { console.error(err); }
+            }
+        }
+    }
+
+    let scamScore = 0;
+    SCAM_RULES.forEach(rule => { if (rule.regex.test(contentLower)) scamScore += rule.points; });
+    if (scamScore >= 8) {
+        try { await message.delete().catch(() => {}); return true; } catch (err) { console.error(err); }
+    }
+
+    if (/[\u0300-\u036f]{4,}/g.test(content)) {
+        try { await message.delete().catch(() => {}); return true; } catch (err) { console.error(err); }
     }
 
     return false;
 }
 
 // ==========================================
-// 🛡️ PROTECTION : ANTI-MODIFICATION DE MESSAGE
+// 🛡️ PROTECTION : MODIFICATION DE MESSAGE
 // ==========================================
 client.on('messageUpdate', async (oldMessage, newMessage) => {
-    if (oldMessage.content === newMessage.content) return; // Ignore si pas de changement de texte
+    if (oldMessage.content === newMessage.content) return; 
+
+    if (newMessage.content.includes('@everyone') || newMessage.content.includes('@here')) {
+        const isAdminOuMod = newMessage.member?.permissions.has('Administrator') || newMessage.member?.permissions.has('MentionEveryone');
+        if (!isAdminOuMod && newMessage.guild) {
+            try {
+                await newMessage.delete().catch(() => {});
+                await newMessage.member.timeout(3600000, "Ghost Mention Bypass").catch(() => {});
+                const logChannel = newMessage.guild.channels.cache.get(LOG_CHANNEL_ID);
+                if (logChannel) await logChannel.send(`📢 **[BYPASS EVERYONE CONTRÉ]** 📢\n• **Auteur :** ${newMessage.author}`);
+                return;
+            } catch (err) { console.error(err); }
+        }
+    }
     await verifierContenuMessage(newMessage, newMessage.content, "MODIFICATION");
 });
 
 // ==========================================
-// 🛡️ PROTECTION : ANTI-WEBHOOK
+// 🛡️ PROTECTIONS TECHNIQUES STANDARDS
 // ==========================================
 client.on('webhooksUpdate', async (channel) => {
     try {
         await new Promise(resolve => setTimeout(resolve, 800)); 
         const fetchedLogs = await channel.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.WebhookCreate });
         const webhookLog = fetchedLogs.entries.first();
-        if (!webhookLog) return;
-        
-        const { executor, target } = webhookLog;
-        if (executor.id === client.user.id) return;
+        if (!webhookLog || webhookLog.executor.id === client.user.id) return;
 
         const webhooks = await channel.fetchWebhooks();
-        const badWebhook = webhooks.get(target.id);
-        if (badWebhook) {
-            await badWebhook.delete("Anti-Webhook : Création non autorisée.");
-        }
+        const badWebhook = webhooks.get(webhookLog.target.id);
+        if (badWebhook) await badWebhook.delete("Anti-Webhook");
 
-        const member = await channel.guild.members.fetch(executor.id).catch(() => null);
-        if (member && member.manageable) {
-            await member.roles.set([]).catch(console.error); 
-        }
-
-        const logChannel = channel.guild.channels.cache.get(LOG_CHANNEL_ID);
-        if (logChannel) {
-            await logChannel.send(
-                `🚨 **[ALERTE ANTI-WEBHOOK]** 🚨\n` +
-                `• **Salon :** ${channel}\n` +
-                `• **Créateur suspect :** ${executor} (\`${executor.tag}\`)\n` +
-                `• **Action :** Webhook supprimé + Rôles retirés.`
-            );
-        }
-    } catch (err) {
-        console.error("Erreur Anti-Webhook :", err);
-    }
+        const member = await channel.guild.members.fetch(webhookLog.executor.id).catch(() => null);
+        if (member && member.manageable) await member.roles.set([]).catch(console.error); 
+    } catch (err) { console.error(err); }
 });
 
-// ==========================================
-// 🛡️ PROTECTION : ANTI-BOT / ANTI-RAID
-// ==========================================
 client.on('guildMemberAdd', async (member) => {
     tempsArriveeMembres.set(member.id, Date.now());
-    if (!member.user.bot) return;
+    await verifierBioMemBRE(member);
 
+    if (!member.user.bot) return;
     try {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        const fetchedLogs = await member.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.BotAdd });
-        const botLog = fetchedLogs.entries.first();
-        
-        let executorInfo = "Inconnu";
-        if (botLog) {
-            const { executor } = botLog;
-            executorInfo = `${executor} (\`${executor.tag}\`)`;
-        }
-
-        await member.kick("Anti-Bot : Ajout non autorisé.");
-
-        const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
-        if (logChannel) {
-            await logChannel.send(
-                `🛡️ **[LOG ANTI-RAID]** 🛡️\n` +
-                `• **Bot bloqué :** \`${member.user.tag}\`\n` +
-                `• **Ajouté par :** ${executorInfo}\n` +
-                `• **Action :** Expulsé instantanément.`
-            );
-        }
-    } catch (err) {
-        console.error("Erreur Anti-Bot :", err);
-    }
+        await member.kick("Anti-Bot");
+    } catch (err) { console.error(err); }
 });
 
-client.on('guildMemberRemove', (member) => {
-    tempsArriveeMembres.delete(member.id);
+client.on('userUpdate', async (oldUser, newUser) => {
+    client.guilds.cache.forEach(async (guild) => {
+        const member = await guild.members.fetch(newUser.id).catch(() => null);
+        if (member) await verifierBioMemBRE(member);
+    });
 });
 
-// ==========================================
-// 🛡️ PROTECTION : ANTI-SPAM DE RÉACTIONS (ÉMOJIS)
-// ==========================================
 client.on('messageReactionAdd', async (reaction, user) => {
     if (user.bot || !reaction.message.guild) return;
-
     const member = await reaction.message.guild.members.fetch(user.id).catch(() => null);
-    if (!member) return;
+    if (!member || member.permissions.has('Administrator')) return;
 
-    if (member.permissions.has('Administrator') || member.permissions.has('ManageMessages')) return;
-
-    const userId = user.id;
     const NOW = Date.now();
-
-    if (!historiqueReactions.has(userId)) {
-        historiqueReactions.set(userId, []);
-    }
-
-    const timestamps = historiqueReactions.get(userId);
+    if (!historiqueReactions.has(user.id)) historiqueReactions.set(user.id, []);
+    const timestamps = historiqueReactions.get(user.id);
     timestamps.push(NOW);
-
     const reactionsRecentes = timestamps.filter(time => NOW - time < 3000);
-    historiqueReactions.set(userId, reactionsRecentes);
+    historiqueReactions.set(user.id, reactionsRecentes);
 
     if (reactionsRecentes.length > 5) {
         try {
-            await reaction.users.remove(userId).catch(() => {});
-            await member.timeout(3600000, "Spam intensif de réactions").catch(() => {});
-
-            const logChannel = reaction.message.guild.channels.cache.get(LOG_CHANNEL_ID);
-            if (logChannel) {
-                await logChannel.send(
-                    `🛡️ **[LOG ANTI-SPAM RÉACTIONS]** 🛡️\n` +
-                    `• **Auteur :** ${user} (\`${user.tag}\`)\n` +
-                    `• **Action :** Réaction retirée + Timeout 1h.`
-                );
-            }
-            historiqueReactions.set(userId, []);
-        } catch (err) {
-            console.error("Erreur Anti-Spam Réactions :", err);
-        }
+            await reaction.users.remove(user.id).catch(() => {});
+            await member.timeout(3600000, "Spam réactions").catch(() => {});
+        } catch (err) { console.error(err); }
     }
 });
 
@@ -245,25 +463,14 @@ client.on('messageCreate', async (message) => {
     const content = message.content;
     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
 
-    // --- 🛡️ DÉTECTEUR D'INJECTIONS DE FICHIERS DANGEREUX ---
     if (message.attachments.size > 0) {
-        const extensionsInterdites = /\.(exe|scr|bat|vbs|cmd|msi|jar|ps1)$/i;
+        const extensionsInterdites = /\.(exe|scr|bat|vbs|cmd|msi|jar|ps1|zip|rar|7z)$/i;
         for (const [id, attachment] of message.attachments) {
             if (extensionsInterdites.test(attachment.name)) {
                 try {
                     await message.delete().catch(() => {});
-                    const isAdminOuMod = message.member?.permissions.has('Administrator') || message.member?.permissions.has('ManageMessages');
-                    if (!isAdminOuMod) {
-                        await message.member.timeout(3600000, "Envoi de fichier exécutable suspect").catch(() => {});
-                    }
-                    
-                    if (logChannel) {
-                        await logChannel.send(
-                            `💀 **[ALERTE CYBER-SÉCURITÉ : FICHIER BLOQUÉ]** 💀\n` +
-                            `• **Auteur :** ${message.author} (${message.author.tag})\n` +
-                            `• **Fichier détruit :** \`${attachment.name}\`\n` +
-                            `• **Action :** Supprimé + Timeout 1h.`
-                        );
+                    if (!(message.member?.permissions.has('Administrator'))) {
+                        await message.member.timeout(3600000, "Fichier dangereux").catch(() => {});
                     }
                     return; 
                 } catch (err) { console.error(err); }
@@ -271,80 +478,65 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // --- ANALYSE DU TEXTE (Phishing, Scam, Zalgo) ---
+    if (!message.channel.nsfw && message.attachments.size > 0) {
+        if (!(message.member?.permissions.has('ManageMessages'))) {
+            if (message.attachments.some(att => att.spoiler)) {
+                try { await message.delete().catch(() => {}); return; } catch (err) { console.error(err); }
+            }
+        }
+    }
+
     const aEteSupprime = await verifierContenuMessage(message, content, "ENVOI");
     if (aEteSupprime) return;
 
-    // --- 🛡️ DÉTECTION ANTI-QR CODE ---
     if (message.attachments.size > 0) {
         for (const [id, attachment] of message.attachments) {
-            const isImage = /\.(png|jpe?g|webp)$/i.test(attachment.url);
-            if (!isImage) continue;
-
+            if (!/\.(png|jpe?g|webp)$/i.test(attachment.url)) continue;
             try {
                 const response = await axios.get(attachment.url, { responseType: 'arraybuffer' });
                 const imageBuffer = Buffer.from(response.data);
                 const { data, info } = await sharp(imageBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
                 const qrCode = jsQR(new Uint8ClampedArray(data), info.width, info.height);
-
+                
                 if (qrCode && qrCode.data) {
                     await message.delete().catch(() => {});
-                    await message.member.timeout(3600000, "Envoi de QR Code suspect").catch(() => {});
+                    await message.member.timeout(3600000, "Envoi de QR Code interdit (Sécurité maximale)").catch(() => {});
 
                     if (logChannel) {
                         await logChannel.send(
-                            `🖼️ **[LOG ANTI-QR CODE]** 🖼️\n` +
-                            `• **Auteur :** ${message.author}\n` +
-                            `• **Action :** Image supprimée + Timeout 1h.`
+                            `💀 **[SÉCURITÉ INTERDITE : QR CODE SUPPRIMÉ]** 💀\n` +
+                            `• **Auteur :** ${message.author} (\`${message.author.id}\`)\n` +
+                            `• **Action :** Un QR Code a été détecté et détruit immédiatement.\n` +
+                            `• **Sanction :** Membre isolé 1 heure.`
                         );
                     }
                     return; 
                 }
-            } catch (err) {
-                console.error("Erreur scan QR Code :", err.message);
-            }
+            } catch (err) { console.error(err.message); }
         }
     }
 
-    // --- 🛡️ ANTI-TOKEN PAR COMPORTEMENT D'ENTRÉE (100ms) ---
+    // Anti-Token (100ms)
     const NOW = Date.now();
     if (tempsArriveeMembres.has(userId)) {
-        const tempsDepuisArrivee = NOW - tempsArriveeMembres.get(userId);
-        if (tempsDepuisArrivee < 100) {
+        if (NOW - tempsArriveeMembres.get(userId) < 100) {
             try {
                 await message.delete().catch(() => {});
-                await message.member.timeout(3600000, "Token au join").catch(() => {});
-                if (logChannel) {
-                    await logChannel.send(
-                        `🤖 **[ANTI-TOKEN COMPORTEMENTAL]** 🤖\n` +
-                        `• **Utilisateur :** ${message.author}\n` +
-                        `• **Action :** Message supprimé + Timeout 1h.`
-                    );
-                }
+                await message.member.timeout(3600000, "Token").catch(() => {});
                 return;
             } catch (err) { console.error(err); }
         }
     }
 
-    // --- 🛡️ DETECTEUR SELFBOT MULTI-SALONS (100ms) ---
+    // Anti-Selfbot Multi-Salons
     if (!historiqueSalons.has(userId)) {
         historiqueSalons.set(userId, { temps: NOW, salonId: message.channel.id });
     } else {
         const doubleCompte = historiqueSalons.get(userId);
-        const differenceTemps = NOW - doubleCompte.temps;
-
-        if (doubleCompte.salonId !== message.channel.id && differenceTemps < 100) {
+        if (doubleCompte.salonId !== message.channel.id && (NOW - doubleCompte.temps) < 100) {
             try {
                 await message.delete().catch(() => {});
-                await message.member.timeout(3600000, "Selfbot détecté").catch(() => {});
-
-                if (logChannel) {
-                    await logChannel.send(
-                        `🚨 **[SELFBOT MULTI-SALONS CONTRÉ]** 🚨\n` +
-                        `• **Utilisateur :** ${message.author}\n` +
-                        `• **Action :** Message supprimé + Timeout 1h.`
-                    );
-                }
+                await message.member.timeout(3600000, "Selfbot").catch(() => {});
                 historiqueSalons.delete(userId);
                 return;
             } catch (err) { console.error(err); }
