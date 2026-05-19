@@ -172,7 +172,7 @@ client.on('interactionCreate', async (interaction) => {
             `• Suppression des injections de \`@everyone\` / \`@here\` par modification`;
 
         const statusEmbed = new EmbedBuilder()
-            .setColor('#2f3136')
+            .setColor('#ffa500')
             .setTitle('🛡️ FORTERESSE RAILWAY - TABLEAU DE BORD')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
