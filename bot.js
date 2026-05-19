@@ -16,7 +16,7 @@ const client = new Client({
     ] 
 });
 
-// 🆔 ID de ton salon de logs secret
+// 🆔 ID de ton salon de logs secret (Bien configuré)
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 
 const historiqueSalons = new Map();
@@ -57,7 +57,15 @@ const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|med
 async function scannerHistoriqueMessages() {
     if (scanEnCours) return;
     scanEnCours = true;
+    
     console.log("⏳ [STATISTIQUES] Début du scan de l'historique des messages du serveur...");
+    
+    // Envoi d'un message dans ton salon de logs au début du scan
+    const premierServeur = client.guilds.cache.first();
+    const logChannel = premierServeur?.channels.cache.get(LOG_CHANNEL_ID);
+    if (logChannel) {
+        await logChannel.send(`📊 **[STATISTIQUES]** Le bot démarre l'analyse et le comptage de tout l'historique des messages du serveur...`).catch(() => {});
+    }
     
     let compteurLocal = 0;
 
@@ -89,6 +97,11 @@ async function scannerHistoriqueMessages() {
     totalMessagesServeur = compteurLocal;
     scanEnCours = false;
     console.log(`✅ [STATISTIQUES] Scan terminé ! ${totalMessagesServeur} messages trouvés dans l'historique.`);
+    
+    // Envoi d'un message de confirmation dans ton salon de logs à la fin du scan
+    if (logChannel) {
+        await logChannel.send(`✅ **[STATISTIQUES]** Scan de l'historique terminé avec succès !\n• Total enregistré : \`${totalMessagesServeur.toLocaleString()}\` messages.`).catch(() => {});
+    }
 }
 
 // ==========================================
@@ -98,7 +111,10 @@ client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
     console.log(`🛡️ PROTECTION MAXIMALE ACCÈS SÉCURISÉ`);
 
-    scannerHistoriqueMessages();
+    // ⏳ SÉCURITÉ TIMING : On attend 5 secondes que Discord charge bien les salons
+    setTimeout(() => {
+        scannerHistoriqueMessages();
+    }, 5000);
 
     const commands = [
         new SlashCommandBuilder()
@@ -143,7 +159,6 @@ client.on('interactionCreate', async (interaction) => {
             ? `🔄 Calcul en cours... (~${totalMessagesServeur})` 
             : `\`${totalMessagesServeur.toLocaleString()}\` messages`;
 
-        // Texte ultra propre avec les boucliers rouges pour chaque protection
         const texteProtections = 
             `🛡️ **Anti-Nuke & Staff Corrompu :**\n` +
             `• Protection Mass Ban, Kick, Salons & Webhooks\n\n` +
@@ -596,7 +611,7 @@ client.on('messageCreate', async (message) => {
         if (doubleCompte.salonId !== message.channel.id && (NOW - doubleCompte.temps) < 100) {
             try {
                 await message.delete().catch(() => {});
-                await member.timeout(3600000, "Selfbot").catch(() => {});
+                await message.member.timeout(3600000, "Selfbot").catch(() => {});
                 historiqueSalons.delete(userId);
                 return;
             } catch (err) { console.error(err); }
