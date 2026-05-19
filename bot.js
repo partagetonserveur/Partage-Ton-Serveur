@@ -24,6 +24,10 @@ const tempsArriveeMembres = new Map();
 const historiqueReactions = new Map(); 
 const historiqueModifsServeur = new Map(); 
 
+// Variables pour les statistiques de messages
+let totalMessagesServeur = 0;
+let scanEnCours = false;
+
 // Mémoires pour l'anti-sabotage
 const historiqueCreationSalons = new Map(); 
 const historiqueBansModo = new Map(); 
@@ -48,13 +52,54 @@ const regexLienGeneral = /https?:\/\/[^\s]+/gi;
 const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|media)|discordapp\.com)/i;
 
 // ==========================================
+// 🔄 FONCTION DE SCAN DE L'HISTORIQUE
+// ==========================================
+async function scannerHistoriqueMessages() {
+    if (scanEnCours) return;
+    scanEnCours = true;
+    console.log("⏳ [STATISTIQUES] Début du scan de l'historique des messages du serveur...");
+    
+    let compteurLocal = 0;
+
+    for (const [channelId, channel] of client.channels.cache) {
+        if (!channel.isTextBased() || channel.isThread()) continue;
+
+        try {
+            let lastId = null;
+            let options = { limit: 100 };
+
+            while (true) {
+                if (lastId) options.before = lastId;
+
+                const messages = await channel.messages.fetch(options).catch(() => null);
+                if (!messages || messages.size === 0) break;
+
+                compteurLocal += messages.size;
+                lastId = messages.last().id;
+
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                if (messages.size < 100 || compteurLocal > 500000) break;
+            }
+        } catch (err) {
+            console.error(`Impossible de scanner le salon ${channel.name}:`, err.message);
+        }
+    }
+
+    totalMessagesServeur = compteurLocal;
+    scanEnCours = false;
+    console.log(`✅ [STATISTIQUES] Scan terminé ! ${totalMessagesServeur} messages trouvés dans l'historique.`);
+}
+
+// ==========================================
 // 🧠 ENREGISTREMENT DE LA SLASH COMMAND
 // ==========================================
 client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
     console.log(`🛡️ PROTECTION MAXIMALE ACCÈS SÉCURISÉ`);
 
-    // Configuration de la commande /status
+    scannerHistoriqueMessages();
+
     const commands = [
         new SlashCommandBuilder()
             .setName('status')
@@ -82,7 +127,6 @@ client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === 'status') {
-        // Calcul du temps d'allumage (Uptime)
         let totalSeconds = (client.uptime / 1000);
         let days = Math.floor(totalSeconds / 86400);
         totalSeconds %= 86400;
@@ -92,29 +136,42 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
         const uptimeString = `${days}j ${hours}h ${minutes}m ${seconds}s`;
 
-        // Calcul de la RAM consommée sur Railway
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-
-        // Compter le total de membres protégés sur tous les serveurs du bot
         const totalMembres = client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
 
-        // Création d'un Embed stylé de monitoring
+        const affichageMessages = scanEnCours 
+            ? `🔄 Calcul en cours... (~${totalMessagesServeur})` 
+            : `\`${totalMessagesServeur.toLocaleString()}\` messages`;
+
+        // Texte ultra propre avec les boucliers rouges pour chaque protection
+        const texteProtections = 
+            `🛡️ **Anti-Nuke & Staff Corrompu :**\n` +
+            `• Protection Mass Ban, Kick, Salons & Webhooks\n\n` +
+            `🛡️ **Anti-Phishing & Malware :**\n` +
+            `• Liens suspects, faux Nitro, fichiers exécutables & bios malveillantes\n\n` +
+            `🛡️ **Anti-QR Code :**\n` +
+            `• Scan brut et suppression immédiate de tous les QR Codes\n\n` +
+            `🛡️ **Anti-NSFW en Public :**\n` +
+            `• Blocage des pièces jointes en Spoilers hors salons majeurs\n\n` +
+            `🛡️ **Anti-Ghost Mention :**\n` +
+            `• Suppression des injections de \`@everyone\` / \`@here\` par modification`;
+
         const statusEmbed = new EmbedBuilder()
-            .setColor('#2f3136') // Couleur sombre type "sécurité"
+            .setColor('#2f3136')
             .setTitle('🛡️ FORTERESSE RAILWAY - TABLEAU DE BORD')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
                 { name: '⚡ Statut du Système', value: '🟢 Fonctionnel & Actif', inline: true },
                 { name: '📡 Latence (Ping)', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
                 { name: '💾 Mémoire RAM (Railway)', value: `\`${usageMemoire} MB\` / 512 MB`, inline: true },
-                { name: '👥 Protection Active', value: `\`${totalMembres} membres\` sécurisés`, inline: true },
+                { name: '👥 Protection Active', value: `\`${totalMembres} membres\``, inline: true },
+                { name: '📊 Total Messages Scannés', value: affichageMessages, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${uptimeString}\``, inline: false },
-                { name: '⚙️ Sécurités Armées', value: '• Anti-Nuke (Ban, Kick, Salons, Webhooks)\n• Anti-Phishing & Anti-Malware\n• Anti-QR Code Radical (H24)\n• Anti-Ghost Mention (@everyone)' }
+                { name: '⚙️ Sécurités Armées & Protocoles', value: texteProtections }
             )
             .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
             .setTimestamp();
 
-        // Envoi de la réponse
         await interaction.reply({ embeds: [statusEmbed] });
     }
 });
@@ -454,10 +511,13 @@ client.on('messageReactionAdd', async (reaction, user) => {
 });
 
 // ==========================================
-// PROTECTIONS PAR MESSAGE CRÉÉ
+// PROTECTIONS PAR MESSAGE CRÉÉ + STATS DIRECT
 // ==========================================
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
+
+    // Compteur en temps réel
+    totalMessagesServeur++;
 
     const userId = message.author.id;
     const content = message.content;
@@ -536,7 +596,7 @@ client.on('messageCreate', async (message) => {
         if (doubleCompte.salonId !== message.channel.id && (NOW - doubleCompte.temps) < 100) {
             try {
                 await message.delete().catch(() => {});
-                await message.member.timeout(3600000, "Selfbot").catch(() => {});
+                await member.timeout(3600000, "Selfbot").catch(() => {});
                 historiqueSalons.delete(userId);
                 return;
             } catch (err) { console.error(err); }
