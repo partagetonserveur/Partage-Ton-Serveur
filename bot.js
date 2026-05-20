@@ -16,7 +16,7 @@ const client = new Client({
     ] 
 });
 
-// 🆔 ID de ton salon de logs secret
+// 🆔 ID de ton salon de logs secret (présent sur les deux serveurs)
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 
 const historiqueSalons = new Map();
@@ -24,9 +24,9 @@ const tempsArriveeMembres = new Map();
 const historiqueReactions = new Map(); 
 const historiqueModifsServeur = new Map(); 
 
-// Variables pour les statistiques de messages
-let totalMessagesServeur = 0;
-let scanEnCours = false;
+// Variables de statistiques séparées par serveur (ID du serveur => Valeur)
+const totalMessagesParServeur = new Map(); 
+const serveursEnCoursDeScan = new Set();     
 
 // Mémoires pour l'anti-sabotage
 const historiqueCreationSalons = new Map(); 
@@ -52,60 +52,63 @@ const regexLienGeneral = /https?:\/\/[^\s]+/gi;
 const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|media)|discordapp\.com)/i;
 
 // ==========================================
-// 🔄 FONCTION DE SCAN DE L'HISTORIQUE CORRIGÉE & SÉCURISÉE
+// 🔄 FONCTION DE SCAN DE L'HISTORIQUE SÉPARÉE PAR SERVEUR
 // ==========================================
 async function scannerHistoriqueMessages() {
-    if (scanEnCours) return;
-    scanEnCours = true;
+    console.log("⏳ [STATISTIQUES] Début du scan de l'historique pour chaque serveur...");
     
-    console.log("⏳ [STATISTIQUES] Début du scan de l'historique global (Tous les salons)...");
-    
-    const premierServeur = client.guilds.cache.first();
-    const logChannel = premierServeur?.channels.cache.get(LOG_CHANNEL_ID);
-    if (logChannel) {
-        await logChannel.send(`📊 **[STATISTIQUES]** Le bot démarre l'analyse et le comptage de TOUT l'historique des messages (y compris ce salon de logs)...`).catch(() => {});
-    }
-    
-    let compteurLocal = 0;
-
-    for (const [channelId, channel] of client.channels.cache) {
-        if (!channel.isTextBased() || channel.isThread()) continue;
-
-        // Évite le crash si le bot n'a pas les permissions requises dans le salon
-        const permissions = channel.permissionsFor(client.user);
-        if (!permissions || !permissions.has('ViewChannel') || !permissions.has('ReadMessageHistory')) continue;
-
-        try {
-            let lastId = null;
-
-            while (true) {
-                let options = { limit: 100 };
-                if (lastId) options.before = lastId;
-
-                const messages = await channel.messages.fetch(options).catch(() => null);
-                if (!messages || messages.size === 0) break;
-
-                compteurLocal += messages.size;
-                // Accumulation en temps réel pour l'affichage dynamique de la commande /status
-                totalMessagesServeur = compteurLocal; 
-                lastId = messages.last().id;
-
-                // Anti Rate-Limit Discord (250ms pour rester sous les radars)
-                await new Promise(resolve => setTimeout(resolve, 250));
-
-                if (messages.size < 100) break;
-            }
-        } catch (err) {
-            console.error(`Impossible de scanner le salon ${channel.name}:`, err.message);
+    for (const [guildId, guild] of client.guilds.cache) {
+        if (serveursEnCoursDeScan.has(guildId)) continue;
+        serveursEnCoursDeScan.add(guildId);
+        
+        // Initialisation du compteur spécifique à ce serveur
+        totalMessagesParServeur.set(guildId, 0);
+        
+        const logChannel = guild.channels.cache.get(LOG_CHANNEL_ID);
+        if (logChannel) {
+            await logChannel.send(`📊 **[STATISTIQUES]** Le bot démarre l'analyse et le comptage de TOUT l'historique des messages de **ce serveur**...`).catch(() => {});
         }
-    }
 
-    totalMessagesServeur = compteurLocal;
-    scanEnCours = false;
-    console.log(`✅ [STATISTIQUES] Scan terminé ! ${totalMessagesServeur} messages trouvés au total.`);
-    
-    if (logChannel) {
-        await logChannel.send(`✅ **[STATISTIQUES]** Scan de l'historique global terminé avec succès !\n• Total général enregistré : \`${totalMessagesServeur.toLocaleString()}\` messages.`).catch(() => {});
+        // Lancement du scan de manière isolée pour chaque serveur
+        (async () => {
+            let compteurLocal = 0;
+            const salonsDuServeur = guild.channels.cache.filter(c => c.isTextBased() && !c.isThread());
+
+            for (const [channelId, channel] of salonsDuServeur) {
+                const permissions = channel.permissionsFor(client.user);
+                if (!permissions || !permissions.has('ViewChannel') || !permissions.has('ReadMessageHistory')) continue;
+
+                try {
+                    let lastId = null;
+                    while (true) {
+                        let options = { limit: 100 };
+                        if (lastId) options.before = lastId;
+
+                        const messages = await channel.messages.fetch(options).catch(() => null);
+                        if (!messages || messages.size === 0) break;
+
+                        compteurLocal += messages.size;
+                        // Met à jour la Map en temps réel pour la commande /status de ce serveur
+                        totalMessagesParServeur.set(guildId, compteurLocal); 
+                        lastId = messages.last().id;
+
+                        // Anti Rate-Limit Discord (250ms)
+                        await new Promise(resolve => setTimeout(resolve, 250));
+
+                        if (messages.size < 100) break;
+                    }
+                } catch (err) {
+                    console.error(`Impossible de scanner le salon ${channel.name} sur ${guild.name}:`, err.message);
+                }
+            }
+            
+            serveursEnCoursDeScan.delete(guildId);
+            console.log(`✅ [STATISTIQUES] Scan terminé pour [${guild.name}] ! ${compteurLocal} messages.`);
+            
+            if (logChannel) {
+                await logChannel.send(`✅ **[STATISTIQUES]** Scan de l'historique terminé avec succès sur ce serveur !\n• Total enregistré ici : \`${compteurLocal.toLocaleString()}\` messages.`).catch(() => {});
+            }
+        })();
     }
 }
 
@@ -116,7 +119,7 @@ client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
     console.log(`🛡️ PROTECTION MAXIMALE ACCÈS SÉCURISÉ`);
 
-    // ⏳ Pause de 5 secondes pour charger le cache Discord avant de lancer le gros scan
+    // ⏳ Pause de 5 secondes pour charger le cache Discord avant de lancer les scans
     setTimeout(() => {
         scannerHistoriqueMessages();
     }, 5000);
@@ -142,12 +145,15 @@ client.on('ready', async () => {
 });
 
 // ==========================================
-// 📊 LOGIQUE DE LA SLASH COMMAND /status CORRIGÉE
+// 📊 LOGIQUE DE LA SLASH COMMAND /status ISOLÉE
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === 'status') {
+        const guildId = interaction.guildId;
+        if (!guildId) return;
+
         let totalSeconds = (client.uptime / 1000);
         let days = Math.floor(totalSeconds / 86400);
         totalSeconds %= 86400;
@@ -158,12 +164,17 @@ client.on('interactionCreate', async (interaction) => {
         const uptimeString = `${days}j ${hours}h ${minutes}m ${seconds}s`;
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMembres = client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
+        
+        // Récupère uniquement les membres du serveur où la commande est tapée
+        const totalMembresDuServeur = interaction.guild.memberCount;
 
-        // Affiche la progression en temps réel si le scan tourne en tâche de fond
-        const affichageMessages = scanEnCours 
-            ? `🔄 Calcul en cours... (\`${totalMessagesServeur.toLocaleString()}\` scannés)` 
-            : `\`${totalMessagesServeur.toLocaleString()}\` messages`;
+        // Récupère les données spécifiques à ce serveur dans la Map
+        const totalMessages = totalMessagesParServeur.get(guildId) || 0;
+        const scanActuel = serveursEnCoursDeScan.has(guildId);
+
+        const affichageMessages = scanActuel 
+            ? `🔄 Calcul en cours... (\`${totalMessages.toLocaleString()}\` scannés)` 
+            : `\`${totalMessages.toLocaleString()}\` messages`;
 
         const texteProtections = 
             `🛡️ **Anti-Nuke & Staff Corrompu :**\n` +
@@ -185,7 +196,7 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '⚡ Statut du Système', value: '🟢 Fonctionnel & Actif', inline: true },
                 { name: '📡 Latence (Ping)', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
                 { name: '💾 Mémoire RAM', value: `\`${usageMemoire} MB\` / 512 MB`, inline: true },
-                { name: '👥 Protection Active', value: `\`${totalMembres} membres\``, inline: true },
+                { name: '👥 Protection Active', value: `\`${totalMembresDuServeur} membres\``, inline: true },
                 { name: '📊 Total Messages Scannés', value: affichageMessages, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${uptimeString}\``, inline: false },
                 { name: '⚙️ Sécurités Armées & Protocoles', value: texteProtections }
@@ -537,8 +548,9 @@ client.on('messageReactionAdd', async (reaction, user) => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
-    // Compteur en temps réel réactif
-    totalMessagesServeur++;
+    // Incrémentation du compteur spécifique à ce serveur
+    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 0;
+    totalMessagesParServeur.set(message.guild.id, totalActuel + 1);
 
     const userId = message.author.id;
     const content = message.content;
