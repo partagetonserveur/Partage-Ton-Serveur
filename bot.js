@@ -1,4 +1,5 @@
 const { Client, GatewayIntentBits, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { joinVoiceChannel } = require('@discordjs/voice'); // 🔊 Importation du module vocal
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
@@ -12,7 +13,8 @@ const client = new Client({
         GatewayIntentBits.GuildWebhooks,
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.GuildModeration, 
-        GatewayIntentBits.GuildPresences 
+        GatewayIntentBits.GuildPresences,
+        GatewayIntentBits.GuildVoiceStates // 🔊 Requis pour détecter les salons vocaux
     ] 
 });
 
@@ -28,7 +30,7 @@ const historiqueModifsServeur = new Map();
 const totalMessagesParServeur = new Map(); 
 const serveursEnCoursDeScan = new Set();     
 
-// Mémoires pour l'anti-sabotage
+// Mémoires pour l'anti-sabotage (Anti-Nuke)
 const historiqueCreationSalons = new Map(); 
 const historiqueBansModo = new Map(); 
 const historiqueSuppressionSalons = new Map(); 
@@ -113,7 +115,7 @@ async function scannerHistoriqueMessages() {
 }
 
 // ==========================================
-// 🧠 ENREGISTREMENT DE LA SLASH COMMAND
+// 🧠 ENREGISTREMENT DES SLASH COMMANDS
 // ==========================================
 client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
@@ -124,36 +126,43 @@ client.on('ready', async () => {
         scannerHistoriqueMessages();
     }, 5000);
 
+    // Déclaration de tes deux commandes slash (/status et /join)
     const commands = [
         new SlashCommandBuilder()
             .setName('status')
-            .setDescription('Affiche l’état de santé du bot et les statistiques de la forteresse.')
+            .setDescription('Affiche l’état de santé du bot et les statistiques de la forteresse.'),
+        new SlashCommandBuilder()
+            .setName('join')
+            .setDescription('Fait rejoindre le bot dans votre salon vocal actuel.')
     ].map(command => command.toJSON());
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN || client.token);
 
     try {
-        console.log('⏳ Enregistrement de la commande Slash /status...');
+        console.log('⏳ Enregistrement des commandes Slash...');
         await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands },
         );
-        console.log('✅ La Slash Command /status a été enregistrée avec succès au niveau global !');
+        console.log('✅ Les Slash Commands ont été enregistrées avec succès au niveau global !');
     } catch (error) {
-        console.error("Erreur lors de l'enregistrement de la Slash Command :", error);
+        console.error("Erreur lors de l'enregistrement des Slash Commands :", error);
     }
 });
 
 // ==========================================
-// 📊 LOGIQUE DE LA SLASH COMMAND /status ISOLÉE
+// ⚙️ TRAITEMENT DES SLASH COMMANDS INTERACTION
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    if (interaction.commandName === 'status') {
-        const guildId = interaction.guildId;
-        if (!guildId) return;
+    const guildId = interaction.guildId;
+    if (!guildId) return;
 
+    // ------------------------------------------
+    // 📊 LOGIQUE DE LA SLASH COMMAND /status
+    // ------------------------------------------
+    if (interaction.commandName === 'status') {
         let totalSeconds = (client.uptime / 1000);
         let days = Math.floor(totalSeconds / 86400);
         totalSeconds %= 86400;
@@ -164,11 +173,8 @@ client.on('interactionCreate', async (interaction) => {
         const uptimeString = `${days}j ${hours}h ${minutes}m ${seconds}s`;
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        
-        // Récupère uniquement les membres du serveur où la commande est tapée
         const totalMembresDuServeur = interaction.guild.memberCount;
 
-        // Récupère les données spécifiques à ce serveur dans la Map
         const totalMessages = totalMessagesParServeur.get(guildId) || 0;
         const scanActuel = serveursEnCoursDeScan.has(guildId);
 
@@ -205,6 +211,54 @@ client.on('interactionCreate', async (interaction) => {
             .setTimestamp();
 
         await interaction.reply({ embeds: [statusEmbed] });
+    }
+
+    // ------------------------------------------
+    // 🔊 LOGIQUE DE LA SLASH COMMAND /join
+    // ------------------------------------------
+    if (interaction.commandName === 'join') {
+        const member = interaction.member;
+        
+        // Vérifie si l'utilisateur est bien connecté dans un salon vocal
+        if (!member.voice.channel) {
+            return await interaction.reply({ 
+                content: "❌ **Erreur :** Tu dois être connecté dans un salon vocal pour que je puisse te rejoindre !", 
+                ephemeral: true 
+            });
+        }
+
+        const voiceChannel = member.voice.channel;
+
+        // Vérification des permissions de sécurité d'accès au salon vocal
+        const permissions = voiceChannel.permissionsFor(client.user);
+        if (!permissions.has('Connect') || !permissions.has('Speak')) {
+            return await interaction.reply({ 
+                content: "❌ **Erreur de sécurité :** Je n'ai pas les permissions requises pour me connecter ou parler dans ton salon vocal.", 
+                ephemeral: true 
+            });
+        }
+
+        try {
+            // Connexion sécurisée au salon vocal
+            joinVoiceChannel({
+                channelId: voiceChannel.id,
+                guildId: interaction.guildId,
+                adapterCreator: interaction.guild.voiceAdapterCreator,
+                selfDeaf: true, // Sourdine matérielle pour optimiser l'utilisation CPU/RAM sur Railway
+                selfMute: false
+            });
+
+            await interaction.reply({ 
+                content: `🔊 **[VOCAL]** J'ai rejoint avec succès le salon vocal **${voiceChannel.name}** !` 
+            });
+
+        } catch (error) {
+            console.error("Erreur lors du raccordement au salon vocal :", error);
+            await interaction.reply({ 
+                content: "❌ Une erreur critique s'est produite lors de la connexion au salon vocal.", 
+                ephemeral: true 
+            });
+        }
     }
 });
 
@@ -414,7 +468,7 @@ async function verifierBioMemBRE(member) {
 // FONCTION DE SÉCURITÉ POUR ANALYSER LE TEXTE
 // ==========================================
 async function verifierContenuMessage(message, content, typeAction = "ENVOI") {
-    if (!content || message.author.bot || !message.guild) return false;
+    if (!content || !message.guild) return false;
 
     const isAdminOuMod = message.member?.permissions.has('Administrator') || message.member?.permissions.has('ManageMessages');
     if (isAdminOuMod) return false;
@@ -543,14 +597,17 @@ client.on('messageReactionAdd', async (reaction, user) => {
 });
 
 // ==========================================
-// PROTECTIONS PAR MESSAGE CRÉÉ + STATS DIRECT
+// PROTECTIONS PAR MESSAGE CRÉÉ + STATS DIRECT (HUMAINS + BOTS)
 // ==========================================
 client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild) return;
+    if (!message.guild) return;
 
-    // Incrémentation du compteur spécifique à ce serveur
+    // 📊 LE COMPTEUR DE STATS AJOUTE +1 POUR TOUT LE MONDE (Humains, Bots, Webhooks)
     const totalActuel = totalMessagesParServeur.get(message.guild.id) || 0;
     totalMessagesParServeur.set(message.guild.id, totalActuel + 1);
+
+    // 🛡️ SÉCURITÉ CRASH RAILWAY : Le bot stoppe ici ses propres analyses pour éviter les boucles infinies
+    if (message.author.id === client.user.id) return;
 
     const userId = message.author.id;
     const content = message.content;
@@ -593,14 +650,15 @@ client.on('messageCreate', async (message) => {
                 
                 if (qrCode && qrCode.data) {
                     await message.delete().catch(() => {});
-                    await message.member.timeout(3600000, "Envoi de QR Code interdit (Sécurité maximale)").catch(() => {});
+                    if (!(message.member?.permissions.has('Administrator'))) {
+                        await message.member.timeout(3600000, "Envoi de QR Code interdit (Sécurité maximale)").catch(() => {});
+                    }
 
                     if (logChannel) {
                         await logChannel.send(
                             `💀 **[SÉCURITÉ INTERDITE : QR CODE SUPPRIMÉ]** 💀\n` +
                             `• **Auteur :** ${message.author} (\`${message.author.id}\`)\n` +
-                            `• **Action :** Un QR Code a été détecté et détruit immédiatement.\n` +
-                            `• **Sanction :** Membre isolé 1 heure.`
+                            `• **Action :** Un QR Code a été détecté et détruit immédiatement.`
                         );
                     }
                     return; 
