@@ -26,7 +26,7 @@ const tempsArriveeMembres = new Map();
 const historiqueReactions = new Map(); 
 const historiqueModifsServeur = new Map(); 
 
-// Variables de statistiques séparées par serveur (ID du serveur => Valeur)
+// 📊 VARIABLES DE STATISTIQUES SÉPARÉES ET FIGÉES AVEC TON COMPTEUR ULTIME (4 249 147)
 const totalMessagesParServeur = new Map(); 
 const serveursEnCoursDeScan = new Set();     
 
@@ -54,86 +54,28 @@ const regexLienGeneral = /https?:\/\/[^\s]+/gi;
 const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|media)|discordapp\.com)/i;
 
 // ==========================================
-// 🔄 FONCTION DE SCAN DE L'HISTORIQUE SÉPARÉE PAR SERVEUR
-// ==========================================
-async function scannerHistoriqueMessages() {
-    console.log("⏳ [STATISTIQUES] Début du scan de l'historique pour chaque serveur...");
-    
-    for (const [guildId, guild] of client.guilds.cache) {
-        if (serveursEnCoursDeScan.has(guildId)) continue;
-        serveursEnCoursDeScan.add(guildId);
-        
-        // Initialisation du compteur spécifique à ce serveur
-        totalMessagesParServeur.set(guildId, 0);
-        
-        const logChannel = guild.channels.cache.get(LOG_CHANNEL_ID);
-        if (logChannel) {
-            await logChannel.send(`📊 **[STATISTIQUES]** Le bot démarre l'analyse et le comptage de TOUT l'historique des messages de **ce serveur**...`).catch(() => {});
-        }
-
-        // Lancement du scan de manière isolée pour chaque serveur
-        (async () => {
-            let compteurLocal = 0;
-            const salonsDuServeur = guild.channels.cache.filter(c => c.isTextBased() && !c.isThread());
-
-            for (const [channelId, channel] of salonsDuServeur) {
-                const permissions = channel.permissionsFor(client.user);
-                if (!permissions || !permissions.has('ViewChannel') || !permissions.has('ReadMessageHistory')) continue;
-
-                try {
-                    let lastId = null;
-                    while (true) {
-                        let options = { limit: 100 };
-                        if (lastId) options.before = lastId;
-
-                        const messages = await channel.messages.fetch(options).catch(() => null);
-                        if (!messages || messages.size === 0) break;
-
-                        compteurLocal += messages.size;
-                        // Met à jour la Map en temps réel pour la commande /status de ce serveur
-                        totalMessagesParServeur.set(guildId, compteurLocal); 
-                        lastId = messages.last().id;
-
-                        // Anti Rate-Limit Discord (250ms)
-                        await new Promise(resolve => setTimeout(resolve, 250));
-
-                        if (messages.size < 100) break;
-                    }
-                } catch (err) {
-                    console.error(`Impossible de scanner le salon ${channel.name} sur ${guild.name}:`, err.message);
-                }
-            }
-            
-            serveursEnCoursDeScan.delete(guildId);
-            console.log(`✅ [STATISTIQUES] Scan terminé pour [${guild.name}] ! ${compteurLocal} messages.`);
-            
-            if (logChannel) {
-                await logChannel.send(`✅ **[STATISTIQUES]** Scan de l'historique terminé avec succès sur ce serveur !\n• Total enregistré ici : \`${compteurLocal.toLocaleString()}\` messages.`).catch(() => {});
-            }
-        })();
-    }
-}
-
-// ==========================================
 // 🧠 ENREGISTREMENT DES SLASH COMMANDS
 // ==========================================
 client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
     console.log(`🛡️ PROTECTION MAXIMALE ACCÈS SÉCURISÉ`);
 
-    // ⏳ Pause de 5 secondes pour charger le cache Discord avant de lancer les scans
-    setTimeout(() => {
-        scannerHistoriqueMessages();
-    }, 5000);
+    // Initialisation directe du compteur avec le grand scan réussi pour chaque serveur connecté
+    for (const [guildId, guild] of client.guilds.cache) {
+        totalMessagesParServeur.set(guildId, 4249147);
+        console.log(`📊 [STATS SÉCURISÉES] Compteur configuré à 4,249,147 messages pour le serveur : ${guild.name}`);
+    }
 
-    // Déclaration de tes deux commandes slash (/status et /join)
+    // Déclaration de tes deux commandes slash (/status et /join) avec contextes obligatoires
     const commands = [
         new SlashCommandBuilder()
             .setName('status')
-            .setDescription('Affiche l’état de santé du bot et les statistiques de la forteresse.'),
+            .setDescription('Affiche l’état de santé du bot et les statistiques de la forteresse.')
+            .setDMPermission(false), // 🔒 Uniquement sur serveur
         new SlashCommandBuilder()
             .setName('join')
             .setDescription('Fait rejoindre le bot dans votre salon vocal actuel.')
+            .setDMPermission(false)  // 🔒 Obligatoire pour le vocal
     ].map(command => command.toJSON());
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN || client.token);
@@ -175,7 +117,7 @@ client.on('interactionCreate', async (interaction) => {
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
         const totalMembresDuServeur = interaction.guild.memberCount;
 
-        const totalMessages = totalMessagesParServeur.get(guildId) || 0;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4249147;
         const scanActuel = serveursEnCoursDeScan.has(guildId);
 
         const affichageMessages = scanActuel 
@@ -602,8 +544,8 @@ client.on('messageReactionAdd', async (reaction, user) => {
 client.on('messageCreate', async (message) => {
     if (!message.guild) return;
 
-    // 📊 LE COMPTEUR DE STATS AJOUTE +1 POUR TOUT LE MONDE (Humains, Bots, Webhooks)
-    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 0;
+    // 📊 LE COMPTEUR DE STATS AJOUTE +1 EN DIRECT (À partir de 4 249 147)
+    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4249147;
     totalMessagesParServeur.set(message.guild.id, totalActuel + 1);
 
     // 🛡️ SÉCURITÉ CRASH RAILWAY : Le bot stoppe ici ses propres analyses pour éviter les boucles infinies
