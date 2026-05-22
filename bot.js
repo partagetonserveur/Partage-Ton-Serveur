@@ -23,7 +23,7 @@ const client = new Client({
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 
 // 🆔 ID du salon pour les logs d'ACTIVITÉ classiques (Vocal, messages modifiés/supprimés...)
-const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "MET_ICI_L_ID_DU_DEUXIEME_SALON"; 
+const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
 
 const historiqueSalons = new Map();
 const tempsArriveeMembres = new Map(); 
@@ -136,7 +136,7 @@ client.on('interactionCreate', async (interaction) => {
                 },
                 { 
                     name: '🛡️ Anti-Ghost Mention', 
-                    value: '• Interdiction de mentionner massivement des rôles ou d’injecter le tag via modification.' 
+                    value: '• Suppression des injections de @everyone / @here par modification' 
                 },
                 { 
                     name: '📝 Super-Logs Centraux', 
@@ -595,7 +595,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
 client.on('messageCreate', async (message) => {
     if (!message.guild) return;
 
-    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4249147;
+    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4254015;
     totalMessagesParServeur.set(message.guild.id, totalActuel + 1);
 
     if (message.author.id === client.user.id) return;
