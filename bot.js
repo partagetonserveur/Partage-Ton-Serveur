@@ -23,7 +23,7 @@ const client = new Client({
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 
 // 🆔 ID du salon pour les logs d'ACTIVITÉ classiques (Vocal, messages modifiés/supprimés...)
-const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
+const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "MET_ICI_L_ID_DU_DEUXIEME_SALON"; 
 
 const historiqueSalons = new Map();
 const tempsArriveeMembres = new Map(); 
@@ -72,7 +72,7 @@ client.on('ready', async () => {
             .setName('status')
             .setDescription('Affiche l’état de santé du bot et les statistiques.')
             .setDMPermission(false)
-        
+            .setDefaultMemberPermissions('0'), // 🔒 Uniquement pour les Administrateurs
             
         new SlashCommandBuilder()
             .setName('join')
