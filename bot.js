@@ -30,7 +30,7 @@ const tempsArriveeMembres = new Map();
 const historiqueReactions = new Map(); 
 const historiqueModifsServeur = new Map(); 
 
-// 📊 VARIABLES DE STATISTIQUES SÉPARÉES ET FIGÉES (4 249 147)
+// 📊 VARIABLES DE STATISTIQUES SÉPARÉES ET FIGÉES (4 254 020)
 const totalMessagesParServeur = new Map(); 
 const serveursEnCoursDeScan = new Set();     
 
