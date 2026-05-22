@@ -15,15 +15,12 @@ const client = new Client({
         GatewayIntentBits.GuildModeration, 
         GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildExpressions
+        GatewayIntentBits.GuildExpressions // 🎨 Obligatoire pour intercepter les émojis du serveur
     ] 
 });
 
-// 🆔 ID du salon pour les alertes de PROTECTION et d'URGENCE (Anti-Nuke, Phishing...)
+// 🆔 ID de ton salon de logs secret
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
-
-// 🆔 ID du salon pour les logs d'ACTIVITÉ classiques (Vocal, messages modifiés/supprimés...)
-const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
 
 const historiqueSalons = new Map();
 const tempsArriveeMembres = new Map(); 
@@ -39,8 +36,8 @@ const historiqueCreationSalons = new Map();
 const historiqueBansModo = new Map(); 
 const historiqueSuppressionSalons = new Map(); 
 const historiqueKicksModo = new Map();       
-const historiqueCreationEmojis = new Map(); 
-const historiqueSuppressionEmojis = new Map(); 
+const historiqueCreationEmojis = new Map(); // 🆕 Suivi création émojis
+const historiqueSuppressionEmojis = new Map(); // 🆕 Suivi suppression émojis
 
 // RÈGLES ANTI-SCAM COMMUNES
 const SCAM_RULES = [
@@ -68,15 +65,8 @@ client.on('ready', async () => {
     }
 
     const commands = [
-        new SlashCommandBuilder()
-            .setName('status')
-            .setDescription('Affiche l’état de santé du bot et les statistiques.')
-            .setDMPermission(false)
-            .setDefaultMemberPermissions('0'), // 🔒 Uniquement pour les Administrateurs
-            
-        new SlashCommandBuilder()
-            .setName('join')
-            .setDescription('Fait rejoindre le bot dans votre salon vocal actuel.').setDMPermission(false)
+        new SlashCommandBuilder().setName('status').setDescription('Affiche l’état de santé du bot et les statistiques.').setDMPermission(false),
+        new SlashCommandBuilder().setName('join').setDescription('Fait rejoindre le bot dans votre salon vocal actuel.').setDMPermission(false)
     ].map(command => command.toJSON());
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN || client.token);
@@ -104,49 +94,24 @@ client.on('interactionCreate', async (interaction) => {
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
         const totalMessages = totalMessagesParServeur.get(guildId) || 4249147;
 
+        const texteProtections = 
+            `🛡️ **Anti-Nuke :** Actif (Salons, Émojis, Bans, Kicks, Webhooks)\n` +
+            `🛡️ **Anti-Phishing & QR Code :** Actif | 🛡️ **Anti-Ghost Mention :** Actif\n` +
+            `📝 **Super-Logs Centraux :** En direct (Texte, Vocal, Rôles, Membres, Modération)`;
+
         const statusEmbed = new EmbedBuilder()
             .setColor('#ffa500')
             .setTitle('🛡️ TABLEAU DE BORD DE SÉCURITÉ')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
-                .addFields(
-                { name: '⚡ Statut du Système', value: '🟢 Fonctionnel & Actif', inline: true },
-                { name: '📡 Latence (Ping)', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
-                { name: '💾 Mémoire RAM', value: `\`${usageMemoire} MB\` / \`512 MB\``, inline: true },
-                { name: '👥 Protection Active', value: `\`${totalMembres.toLocaleString()}\` membres`, inline: true },
-                { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
-                { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
-                
-                { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
-                
-                { 
-                    name: '🛡️ Anti-Nuke', 
-                    value: '• Anti-Raid Mass Ban, Mass Kick, Salon Multi-Création, Suppression, Modification.' 
-                },
-                { 
-                    name: '🛡️ Anti-Scam / Phishing / Malware', 
-                    value: '• Protection avancée contre le vol de comptes, faux liens de nitro gratuit, fichiers suspects (.exe, .scr, .zip, .rar).' 
-                },
-                { 
-                    name: '🛡️ Anti-QR Code', 
-                    value: '• Détection des images frauduleuses de connexion par QR code (Token Grabber).' 
-                },
-                { 
-                    name: '🛡️ Anti-NSFW', 
-                    value: '• Blocage automatique des images masquées (Spoiler) en dehors des salons majeurs.' 
-                },
-                { 
-                    name: '🛡️ Anti-Ghost Mention', 
-                    value: '• Suppression des injections de @everyone / @here par modification' 
-                },
-                { 
-                    name: '📝 Super-Logs Centraux', 
-                    value: '• Enregistrement en temps réel de l’activité textuelle, vocale et de modération dans les salons dédiés.' 
-                }
+                { name: '⚡ Statut', value: '🟢 Actif', inline: true },
+                { name: '📡 Ping', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
+                { name: '💾 RAM', value: `\`${usageMemoire} MB\``, inline: true },
+                { name: '📊 Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
+                { name: '⏱️ Uptime', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
+                { name: '⚙️ Systèmes Armés', value: texteProtections }
             )
-            .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
             .setTimestamp();
-
         await interaction.reply({ embeds: [statusEmbed] });
     }
 
@@ -168,74 +133,74 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // ==========================================
-// 🔊 LOGS VOCAUX ADVANCED (Salon Activité)
+// 🔊 LOGS VOCAUX ADVANCED
 // ==========================================
 client.on('voiceStateUpdate', async (oldState, newState) => {
-    const activityLogChannel = newState.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
-    if (!activityLogChannel || newState.member.user.bot) return;
+    const logChannel = newState.guild.channels.cache.get(LOG_CHANNEL_ID);
+    if (!logChannel || newState.member.user.bot) return;
 
     const embedVocal = new EmbedBuilder().setTimestamp().setFooter({ text: `ID: ${newState.member.id}` });
 
     if (!oldState.channelId && newState.channelId) {
         embedVocal.setColor('#2ecc71').setTitle('🎤 VOCAL : SALON REJOINT').setDescription(`• **Membre :** ${newState.member}\n• **Salon rejoint :** ${newState.channel}`);
-        return await activityLogChannel.send({ embeds: [embedVocal] }).catch(() => {});
+        return await logChannel.send({ embeds: [embedVocal] }).catch(() => {});
     }
 
     if (oldState.channelId && !newState.channelId) {
         embedVocal.setColor('#e74c3c').setTitle('🎤 VOCAL : SALON QUITTÉ').setDescription(`• **Membre :** ${oldState.member}\n• **Salon quitté :** ${oldState.channel}`);
-        return await activityLogChannel.send({ embeds: [embedVocal] }).catch(() => {});
+        return await logChannel.send({ embeds: [embedVocal] }).catch(() => {});
     }
 
     if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
         embedVocal.setColor('#f39c12').setTitle('🎤 VOCAL : CHANGEMENT DE SALON').setDescription(`• **Membre :** ${newState.member}\n• **Ancien Salon :** ${oldState.channel}\n• **Nouveau Salon :** ${newState.channel}`);
-        return await activityLogChannel.send({ embeds: [embedVocal] }).catch(() => {});
+        return await logChannel.send({ embeds: [embedVocal] }).catch(() => {});
     }
 });
 
 // ==========================================
-// 👥 & 🛡️ LOGS MEMBRES ET LOGS DE RÔLES (Salon Activité)
+// 👥 & 🛡️ LOGS MEMBRES ET LOGS DE RÔLES
 // ==========================================
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
-    const activityLogChannel = newMember.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
-    if (!activityLogChannel) return;
+    const logChannel = newMember.guild.channels.cache.get(LOG_CHANNEL_ID);
+    if (!logChannel) return;
 
     const embedModif = new EmbedBuilder().setTimestamp().setFooter({ text: `ID: ${newMember.id}` });
 
     if (oldMember.nickname !== newMember.nickname) {
         embedModif.setColor('#9b59b6').setTitle('👥 MEMBRE : CHANGEMENT DE PSEUDO').setDescription(`• **Membre :** ${newMember}\n• **Ancien :** \`${oldMember.nickname || oldMember.user.username}\`\n• **Nouveau :** \`${newMember.nickname || newMember.user.username}\``);
-        return await activityLogChannel.send({ embeds: [embedModif] }).catch(() => {});
+        return await logChannel.send({ embeds: [embedModif] }).catch(() => {});
     }
 
     if (oldMember.roles.cache.size < newMember.roles.cache.size) {
         const roleAjoute = newMember.roles.cache.filter(role => !oldMember.roles.cache.has(role.id)).first();
         if (!roleAjoute) return;
         embedModif.setColor('#1abc9c').setTitle('🛡️ RÔLE : ACCORDÉ').setDescription(`• **Bénéficiaire :** ${newMember}\n• **Rôle attribué :** ${roleAjoute}`);
-        return await activityLogChannel.send({ embeds: [embedModif] }).catch(() => {});
+        return await logChannel.send({ embeds: [embedModif] }).catch(() => {});
     }
 
     if (oldMember.roles.cache.size > newMember.roles.cache.size) {
         const roleRetire = oldMember.roles.cache.filter(role => !newMember.roles.cache.has(role.id)).first();
         if (!roleRetire) return;
         embedModif.setColor('#d35400').setTitle('🛡️ RÔLE : RETIRÉ').setDescription(`• **Membre concerné :** ${newMember}\n• **Rôle perdu :** ${roleRetire}`);
-        return await activityLogChannel.send({ embeds: [embedModif] }).catch(() => {});
+        return await logChannel.send({ embeds: [embedModif] }).catch(() => {});
     }
 });
 
 // ==========================================
-// 🚫 AUDIT LOGS CENTRAUX : MODÉRATION & ANTI-EMOJI NUKE (Salon Protection & Activité)
+// 🚫 AUDIT LOGS CENTRAUX : MODÉRATION & ANTI-EMOJI NUKE
 // ==========================================
 client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
     const logChannel = guild.channels.cache.get(LOG_CHANNEL_ID);
-    const activityLogChannel = guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
+    if (!logChannel) return;
 
     const executor = auditLogEntry.executor;
     if (executor.id === client.user.id || executor.id === guild.ownerId) return;
     const NOW = Date.now();
 
-    // Logs de modération classiques -> Salon Activité
+    // 1. 🚫 LOGS DE TIMEOUTS
     if (auditLogEntry.action === AuditLogEvent.MemberUpdate) {
         const changeTimeout = auditLogEntry.changes.find(c => c.key === 'communication_disabled_until');
-        if (!changeTimeout || !activityLogChannel) return;
+        if (!changeTimeout) return;
 
         const cible = await guild.members.fetch(auditLogEntry.targetId).catch(() => null);
         if (!cible) return;
@@ -247,16 +212,16 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
         } else { 
             embedMod.setColor('#2ecc71').setTitle('🚫 MODÉRATION : EXCLUSION ANNULÉE').setDescription(`• **Membre libéré :** ${cible}\n• **Modérateur :** ${executor}\n• Le timeout a été retiré.`);
         }
-        return await activityLogChannel.send({ embeds: [embedMod] }).catch(() => {});
+        return await logChannel.send({ embeds: [embedMod] }).catch(() => {});
     }
 
-    // Protection Nuke Émojis -> Salon Protection
+    // 2. 🆕 ANTI-EMOJI FLOOD CREATION
     if (auditLogEntry.action === AuditLogEvent.EmojiCreate) {
         if (!historiqueCreationEmojis.has(executor.id)) historiqueCreationEmojis.set(executor.id, []);
         const creations = historiqueCreationEmojis.get(executor.id).filter(time => NOW - time < 10000);
         creations.push(NOW); historiqueCreationEmojis.set(executor.id, creations);
 
-        if (creations.length > 3 && logChannel) {
+        if (creations.length > 3) {
             const emojiCible = await guild.emojis.fetch(auditLogEntry.targetId).catch(() => null);
             if (emojiCible) await emojiCible.delete().catch(() => {});
             
@@ -268,12 +233,13 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
         }
     }
 
+    // 3. 🆕 ANTI-EMOJI MASS DELETE
     if (auditLogEntry.action === AuditLogEvent.EmojiDelete) {
         if (!historiqueSuppressionEmojis.has(executor.id)) historiqueSuppressionEmojis.set(executor.id, []);
         const suppressions = historiqueSuppressionEmojis.get(executor.id).filter(time => NOW - time < 10000);
         suppressions.push(NOW); historiqueSuppressionEmojis.set(executor.id, suppressions);
 
-        if (suppressions.length > 2 && logChannel) {
+        if (suppressions.length > 2) {
             const memberStaff = await guild.members.fetch(executor.id).catch(() => null);
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
             
@@ -284,7 +250,7 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
 });
 
 // ==========================================
-// 🛡️ SÉCURITÉ STANDARD ANTI-NUKE (Salon Protection & Activité)
+// 🛡️ SÉCURITÉ STANDARD ANTI-NUKE
 // ==========================================
 client.on('guildBanAdd', async (ban) => {
     try {
@@ -296,12 +262,9 @@ client.on('guildBanAdd', async (ban) => {
         if (executor.id === client.user.id || executor.id === ban.guild.ownerId) return;
 
         const logChannel = ban.guild.channels.cache.get(LOG_CHANNEL_ID);
-        const activityLogChannel = ban.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
-
-        // Ban classique -> Activité log
-        if (activityLogChannel && !historiqueBansModo.has(executor.id)) {
+        if (logChannel && !historiqueBansModo.has(executor.id)) {
             const embedBan = new EmbedBuilder().setColor('#c0392b').setTitle('🚫 MODÉRATION : MEMBRE BANNI').setDescription(`• **Membre :** ${ban.user.tag}\n• **Modérateur :** ${executor}`).setTimestamp();
-            await activityLogChannel.send({ embeds: [embedBan] }).catch(() => {});
+            await logChannel.send({ embeds: [embedBan] }).catch(() => {});
         }
 
         const NOW = Date.now();
@@ -309,7 +272,6 @@ client.on('guildBanAdd', async (ban) => {
         const bansRecentes = historiqueBansModo.get(executor.id).filter(time => NOW - time < 10000); 
         bansRecentes.push(NOW); historiqueBansModo.set(executor.id, bansRecentes);
 
-        // Ban de masse -> Alerte Protection
         if (bansRecentes.length > 2) {
             const memberStaff = await ban.guild.members.fetch(executor.id).catch(() => null);
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error); 
@@ -326,20 +288,18 @@ client.on('guildMemberRemove', async (member) => {
         const kickLog = fetchedLogs.entries.first();
         
         const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
-        const activityLogChannel = member.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
-
-        if (activityLogChannel && !kickLog) {
+        if (logChannel && !kickLog) {
             const embedLeave = new EmbedBuilder().setColor('#7f8c8d').setTitle('👥 MEMBRE : A QUITTÉ LE SERVEUR').setDescription(`• **Utilisateur :** ${member.user.tag} (${member.user})`).setTimestamp();
-            await activityLogChannel.send({ embeds: [embedLeave] }).catch(() => {});
+            await logChannel.send({ embeds: [embedLeave] }).catch(() => {});
         }
 
         if (!kickLog) return;
         const { executor, target } = kickLog;
         if (target.id !== member.id || executor.id === client.user.id || executor.id === member.guild.ownerId) return;
 
-        if (activityLogChannel && !historiqueKicksModo.has(executor.id)) {
+        if (logChannel && !historiqueKicksModo.has(executor.id)) {
             const embedKick = new EmbedBuilder().setColor('#d35400').setTitle('🚫 MODÉRATION : MEMBRE EXPULSÉ (KICK)').setDescription(`• **Membre :** ${member.user.tag}\n• **Modérateur :** ${executor}`).setTimestamp();
-            await activityLogChannel.send({ embeds: [embedKick] }).catch(() => {});
+            await logChannel.send({ embeds: [embedKick] }).catch(() => {});
         }
 
         const NOW = Date.now();
@@ -440,7 +400,7 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
 });
 
 // ==========================================
-// 🛡️ SÉCURITÉ TEXTE ET MESSAGES (Salon Protection & Activité)
+// 🛡️ SÉCURITÉ TEXTE ET MESSAGES SUPPRIMÉS/MODIFIÉS
 // ==========================================
 async function verifierBioMemBRE(member) {
     if (!member || member.user.bot) return;
@@ -507,7 +467,6 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
     if (!newMessage.guild || oldMessage.author?.bot) return;
 
     const logChannel = newMessage.guild.channels.cache.get(LOG_CHANNEL_ID);
-    const activityLogChannel = newMessage.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
 
     if (newMessage.content.includes('@everyone') || newMessage.content.includes('@here')) {
         if (!(newMessage.member?.permissions.has('Administrator') || newMessage.member?.permissions.has('MentionEveryone'))) {
@@ -523,21 +482,21 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
     const aEteSupprime = await verifierContenuMessage(newMessage, newMessage.content);
     if (aEteSupprime) return;
 
-    if (activityLogChannel) {
+    if (logChannel) {
         const modifEmbed = new EmbedBuilder().setColor('#3498db').setTitle('📝 TEXTE : MESSAGE MODIFIÉ').setDescription(`• **Auteur :** ${newMessage.author}\n• **Salon :** ${newMessage.channel}`)
             .addFields({ name: '❌ Ancien Contenu', value: oldMessage.content || "*Vide*" }, { name: '✅ Nouveau Contenu', value: newMessage.content || "*Vide*" }).setTimestamp();
-        await activityLogChannel.send({ embeds: [modifEmbed] }).catch(() => {});
+        await logChannel.send({ embeds: [modifEmbed] }).catch(() => {});
     }
 });
 
 client.on('messageDelete', async (message) => {
     if (!message.guild || message.author?.bot) return;
-    const activityLogChannel = message.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
-    if (!activityLogChannel) return;
+    const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+    if (!logChannel) return;
 
     const deleteEmbed = new EmbedBuilder().setColor('#e74c3c').setTitle('🗑️ TEXTE : MESSAGE SUPPRIMÉ').setDescription(`• **Auteur :** ${message.author}\n• **Salon :** ${message.channel}`)
         .addFields({ name: '📄 Contenu détruit', value: message.content || "*[Image / Fichier / Embed]*" }).setTimestamp();
-    await activityLogChannel.send({ embeds: [deleteEmbed] }).catch(() => {});
+    await logChannel.send({ embeds: [deleteEmbed] }).catch(() => {});
 });
 
 client.on('webhooksUpdate', async (channel) => {
@@ -560,10 +519,10 @@ client.on('guildMemberAdd', async (member) => {
     tempsArriveeMembres.set(member.id, Date.now());
     await verifierBioMemBRE(member);
 
-    const activityLogChannel = member.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
-    if (activityLogChannel && !member.user.bot) {
+    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
+    if (logChannel && !member.user.bot) {
         const embedJoin = new EmbedBuilder().setColor('#2ecc71').setTitle('👥 MEMBRE : A REJOINT LE SERVEUR').setDescription(`• **Utilisateur :** ${member.user.tag} (${member})\n• **Création du compte :** <t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`).setTimestamp();
-        await activityLogChannel.send({ embeds: [embedJoin] }).catch(() => {});
+        await logChannel.send({ embeds: [embedJoin] }).catch(() => {});
     }
 
     if (!member.user.bot) return;
@@ -596,7 +555,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
 client.on('messageCreate', async (message) => {
     if (!message.guild) return;
 
-    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4254015;
+    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4249147;
     totalMessagesParServeur.set(message.guild.id, totalActuel + 1);
 
     if (message.author.id === client.user.id) return;
