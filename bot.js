@@ -64,7 +64,7 @@ client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
 
     for (const [guildId, guild] of client.guilds.cache) {
-        totalMessagesParServeur.set(guildId, 4249147);
+        totalMessagesParServeur.set(guildId, 4254030);
     }
 
     const commands = [
