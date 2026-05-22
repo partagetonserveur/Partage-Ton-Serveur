@@ -109,12 +109,13 @@ client.on('interactionCreate', async (interaction) => {
             .setTitle('🛡️ TABLEAU DE BORD DE SÉCURITÉ')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
-                { name: '⚡ Statut', value: '🟢 Actif', inline: true },
+                .addFields(
+                { name: '⚡ Statut du Système', value: '🟢 Fonctionnel & Actif', inline: true },
                 { name: '📡 Latence (Ping)', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
                 { name: '💾 Mémoire RAM', value: `\`${usageMemoire} MB\` / \`512 MB\``, inline: true },
-                { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages', inline: true },
+                { name: '👥 Protection Active', value: `\`${totalMembres.toLocaleString()}\` membres`, inline: true },
+                { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
-                { name: '💬 Information', value: '*Compteur de messages scannés réinitialisé à chaque démarrage.*', inline: true },
                 
                 { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
                 
