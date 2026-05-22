@@ -23,7 +23,7 @@ const client = new Client({
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 
 // 🆔 ID du salon pour les logs d'ACTIVITÉ classiques (Vocal, messages modifiés/supprimés...)
-const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "MET_ICI_L_ID_DU_DEUXIEME_SALON"; 
+const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
 
 const historiqueSalons = new Map();
 const tempsArriveeMembres = new Map(); 
@@ -103,7 +103,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4249147;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4254015;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -117,7 +117,6 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '👥 Protection Active', value: `\`${totalMembres.toLocaleString()}\` membres`, inline: true },
                 { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
-                { name: '💬 Information', value: '*Compteur de messages scannés réinitialisé à chaque démarrage.*', inline: true },
                 
                 { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
                 
