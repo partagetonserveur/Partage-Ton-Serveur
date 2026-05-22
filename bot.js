@@ -72,6 +72,7 @@ client.on('ready', async () => {
             .setName('status')
             .setDescription('Affiche l’état de santé du bot et les statistiques.')
             .setDMPermission(false)
+        
             
         new SlashCommandBuilder()
             .setName('join')
