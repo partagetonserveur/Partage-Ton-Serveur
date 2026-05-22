@@ -92,7 +92,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4249147;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4254015;
 
         const texteProtections = 
             `🛡️ **Anti-Nuke :** Actif (Salons, Émojis, Bans, Kicks, Webhooks)\n` +
@@ -105,10 +105,10 @@ client.on('interactionCreate', async (interaction) => {
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
                 { name: '⚡ Statut', value: '🟢 Actif', inline: true },
-                { name: '📡 Ping', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
-                { name: '💾 RAM', value: `\`${usageMemoire} MB\``, inline: true },
-                { name: '📊 Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
-                { name: '⏱️ Uptime', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
+                { name: '📡 Latence (Ping)', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
+                { name: '💾 Mémoire RAM', value: `\`${usageMemoire} MB\``, inline: true },
+                { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
+                { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
                 { name: '⚙️ Systèmes Armés', value: texteProtections }
             )
             .setTimestamp();
