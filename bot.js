@@ -23,7 +23,7 @@ const client = new Client({
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 
 // 🆔 ID du salon pour les logs d'ACTIVITÉ classiques (Vocal, messages modifiés/supprimés...)
-const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
+const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "MET_ICI_L_ID_DU_DEUXIEME_SALON"; 
 
 const historiqueSalons = new Map();
 const tempsArriveeMembres = new Map(); 
@@ -104,24 +104,48 @@ client.on('interactionCreate', async (interaction) => {
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
         const totalMessages = totalMessagesParServeur.get(guildId) || 4249147;
 
-        const texteProtections = 
-            `🛡️ **Anti-Nuke :** Actif (Salons, Émojis, Bans, Kicks, Webhooks)\n` +
-            `🛡️ **Anti-Phishing & QR Code :** Actif | 🛡️ **Anti-Ghost Mention :** Actif\n` +
-            `📝 **Super-Logs Séparés :** Salon Protection 🔐 & Salon Activité 📝`;
-
         const statusEmbed = new EmbedBuilder()
             .setColor('#ffa500')
             .setTitle('🛡️ TABLEAU DE BORD DE SÉCURITÉ')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
                 { name: '⚡ Statut', value: '🟢 Actif', inline: true },
-                { name: '📡 Ping', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
-                { name: '💾 RAM', value: `\`${usageMemoire} MB\``, inline: true },
-                { name: '📊 Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
-                { name: '⏱️ Uptime', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
-                { name: '⚙️ Systèmes Armés', value: texteProtections }
+                { name: '📡 Latence (Ping)', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
+                { name: '💾 Mémoire RAM', value: `\`${usageMemoire} MB\` / \`512 MB\``, inline: true },
+                { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages', inline: true },
+                { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
+                { name: '💬 Information', value: '*Compteur de messages scannés réinitialisé à chaque démarrage.*', inline: true },
+                
+                { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
+                
+                { 
+                    name: '🛡️ Anti-Nuke', 
+                    value: '• Anti-Raid Mass Ban, Mass Kick, Salon Multi-Création, Suppression, Modification.' 
+                },
+                { 
+                    name: '🛡️ Anti-Scam / Phishing / Malware', 
+                    value: '• Protection avancée contre le vol de comptes, faux liens de nitro gratuit, fichiers suspects (.exe, .scr, .zip, .rar).' 
+                },
+                { 
+                    name: '🛡️ Anti-QR Code', 
+                    value: '• Détection des images frauduleuses de connexion par QR code (Token Grabber).' 
+                },
+                { 
+                    name: '🛡️ Anti-NSFW', 
+                    value: '• Blocage automatique des images masquées (Spoiler) en dehors des salons majeurs.' 
+                },
+                { 
+                    name: '🛡️ Anti-Ghost Mention', 
+                    value: '• Interdiction de mentionner massivement des rôles ou d’injecter le tag via modification.' 
+                },
+                { 
+                    name: '📝 Super-Logs Centraux', 
+                    value: '• Enregistrement en temps réel de l’activité textuelle, vocale et de modération dans les salons dédiés.' 
+                }
             )
+            .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
             .setTimestamp();
+
         await interaction.reply({ embeds: [statusEmbed] });
     }
 
@@ -197,7 +221,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 });
 
 // ==========================================
-// 🚫 AUDIT LOGS CENTRAUX : MODÉRATION & ANTI-EMOJI NUKE (Salon Protection)
+// 🚫 AUDIT LOGS CENTRAUX : MODÉRATION & ANTI-EMOJI NUKE (Salon Protection & Activité)
 // ==========================================
 client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
     const logChannel = guild.channels.cache.get(LOG_CHANNEL_ID);
@@ -207,7 +231,7 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
     if (executor.id === client.user.id || executor.id === guild.ownerId) return;
     const NOW = Date.now();
 
-    // Logs de modération classiques -> Salon Activité pour ne pas polluer la protection
+    // Logs de modération classiques -> Salon Activité
     if (auditLogEntry.action === AuditLogEvent.MemberUpdate) {
         const changeTimeout = auditLogEntry.changes.find(c => c.key === 'communication_disabled_until');
         if (!changeTimeout || !activityLogChannel) return;
@@ -225,7 +249,7 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
         return await activityLogChannel.send({ embeds: [embedMod] }).catch(() => {});
     }
 
-    // Protection Nuke -> Salon Protection
+    // Protection Nuke Émojis -> Salon Protection
     if (auditLogEntry.action === AuditLogEvent.EmojiCreate) {
         if (!historiqueCreationEmojis.has(executor.id)) historiqueCreationEmojis.set(executor.id, []);
         const creations = historiqueCreationEmojis.get(executor.id).filter(time => NOW - time < 10000);
@@ -259,7 +283,7 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
 });
 
 // ==========================================
-// 🛡️ SÉCURITÉ STANDARD ANTI-NUKE (Salon Protection)
+// 🛡️ SÉCURITÉ STANDARD ANTI-NUKE (Salon Protection & Activité)
 // ==========================================
 client.on('guildBanAdd', async (ban) => {
     try {
