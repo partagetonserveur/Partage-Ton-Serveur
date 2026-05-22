@@ -72,7 +72,6 @@ client.on('ready', async () => {
             .setName('status')
             .setDescription('Affiche l’état de santé du bot et les statistiques.')
             .setDMPermission(false)
-            .setDefaultMemberPermissions('0'), // 🔒 Uniquement pour les Administrateurs
             
         new SlashCommandBuilder()
             .setName('join')
