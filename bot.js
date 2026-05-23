@@ -30,7 +30,7 @@ const tempsArriveeMembres = new Map();
 const historiqueReactions = new Map(); 
 const historiqueModifsServeur = new Map(); 
 
-// 📊 VARIABLES DE STATISTIQUES SÉPARÉES ET FIGÉES (4 249 147)
+// 📊 VARIABLES DE STATISTIQUES SÉPARÉES ET FIGÉES (4 256 585)
 const totalMessagesParServeur = new Map(); 
 const serveursEnCoursDeScan = new Set();     
 
@@ -64,7 +64,7 @@ client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
 
     for (const [guildId, guild] of client.guilds.cache) {
-        totalMessagesParServeur.set(guildId, 4249147);
+        totalMessagesParServeur.set(guildId, 4256585);
     }
 
     const commands = [
@@ -138,7 +138,7 @@ client.on('interactionCreate', async (interaction) => {
                 },
                 { 
                     name: '🛡️ Anti-Ghost Mention', 
-                    value: '• Suppression des injections de @everyone / @here par modification.' 
+                    value: '• Suppression des injections de *@everyone / @here* par modification.' 
                 }
             )
             .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
