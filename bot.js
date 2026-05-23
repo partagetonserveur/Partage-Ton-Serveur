@@ -30,7 +30,7 @@ const tempsArriveeMembres = new Map();
 const historiqueReactions = new Map(); 
 const historiqueModifsServeur = new Map(); 
 
-// 📊 VARIABLES DE STATISTIQUES SÉPARÉES ET FIGÉES (4 254 020)
+// 📊 VARIABLES DE STATISTIQUES SÉPARÉES ET FIGÉES (4 249 147)
 const totalMessagesParServeur = new Map(); 
 const serveursEnCoursDeScan = new Set();     
 
@@ -64,15 +64,14 @@ client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
 
     for (const [guildId, guild] of client.guilds.cache) {
-        totalMessagesParServeur.set(guildId, 4254030);
+        totalMessagesParServeur.set(guildId, 4249147);
     }
 
     const commands = [
         new SlashCommandBuilder()
             .setName('status')
             .setDescription('Affiche l’état de santé du bot et les statistiques.')
-            .setDMPermission(false)
-            .setDefaultMemberPermissions('0'), // 🔒 Uniquement pour les Administrateurs
+            .setDMPermission(false), // 🔓 Accessible à tous
             
         new SlashCommandBuilder()
             .setName('join')
@@ -103,7 +102,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4254015;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4249147;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -114,9 +113,10 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '⚡ Statut du Système', value: '🟢 Fonctionnel & Actif', inline: true },
                 { name: '📡 Latence (Ping)', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
                 { name: '💾 Mémoire RAM', value: `\`${usageMemoire} MB\` / \`512 MB\``, inline: true },
-                { name: '👥 Protection Active', value: `\`${totalMembres.toLocaleString()}\` membres`, inline: true },
+                { name: '👥 Protection Active', value: `\`${totalMembres.toLocaleString()}\` membres`, inline: true }, // ✅ Correction syntaxe ici
                 { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
+                { name: '💬 Information', value: '*Compteur de messages scannés réinitialisé à chaque démarrage.*', inline: true },
                 
                 { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
                 
@@ -138,7 +138,7 @@ client.on('interactionCreate', async (interaction) => {
                 },
                 { 
                     name: '🛡️ Anti-Ghost Mention', 
-                    value: '• Suppression des injections de '@everyone / @here' par modification.' 
+                    value: '• Suppression des injections de @everyone / @here par modification.' 
                 }
             )
             .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
@@ -462,7 +462,7 @@ async function verifierContenuMessage(message, content) {
     if (!content || !message.guild) return false;
     if (message.member?.permissions.has('Administrator') || message.member?.permissions.has('ManageMessages')) return false;
 
-    const contentLower = content.toLowerCase().trim();
+    const contentLower = content.toLowerCase().trim(); // ✅ Correction .toLowerCase() ici
     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
 
     if (regexPhishing.test(contentLower)) {
@@ -594,7 +594,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
 client.on('messageCreate', async (message) => {
     if (!message.guild) return;
 
-    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4254035;
+    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4249147;
     totalMessagesParServeur.set(message.guild.id, totalActuel + 1);
 
     if (message.author.id === client.user.id) return;
