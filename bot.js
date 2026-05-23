@@ -102,7 +102,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4249147;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4256585;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -594,7 +594,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
 client.on('messageCreate', async (message) => {
     if (!message.guild) return;
 
-    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4249147;
+    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4256585;
     totalMessagesParServeur.set(message.guild.id, totalActuel + 1);
 
     if (message.author.id === client.user.id) return;
