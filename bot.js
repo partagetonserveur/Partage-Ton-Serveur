@@ -138,7 +138,7 @@ client.on('interactionCreate', async (interaction) => {
                 },
                 { 
                     name: '🛡️ Anti-Ghost Mention', 
-                    value: '• Suppression des injections de *@everyone / @here* par modification.' 
+                    value: '• Suppression des injections de everyone / here par modification.' 
                 }
             )
             .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
