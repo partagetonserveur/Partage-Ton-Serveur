@@ -116,7 +116,6 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '👥 Protection Active', value: `\`${totalMembres.toLocaleString()}\` membres`, inline: true }, // ✅ Correction syntaxe ici
                 { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
-                { name: '💬 Information', value: '*Compteur de messages scannés réinitialisé à chaque démarrage.*', inline: true },
                 
                 { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
                 
