@@ -75,7 +75,6 @@ client.on('ready', async () => {
         new SlashCommandBuilder()
             .setName('join')
             .setDescription('Fait rejoindre le bot dans votre salon vocal actuel.')
-le
     ].map(command => command.toJSON());
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN || client.token);
