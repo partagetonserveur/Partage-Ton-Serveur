@@ -71,13 +71,11 @@ client.on('ready', async () => {
         new SlashCommandBuilder()
             .setName('status')
             .setDescription('Affiche l’état de santé du bot et les statistiques.')
-            .setDMPermission(false) // 🔓 Accessible à tous
-            .setDefaultMemberPermissions(null),
     
         new SlashCommandBuilder()
             .setName('join')
             .setDescription('Fait rejoindre le bot dans votre salon vocal actuel.')
-            .setDMPermission(false)
+le
     ].map(command => command.toJSON());
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN || client.token);
