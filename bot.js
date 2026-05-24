@@ -70,7 +70,7 @@ client.on('ready', async () => {
     const commands = [
         new SlashCommandBuilder()
             .setName('status')
-            .setDescription('Affiche l’état de santé du bot et les statistiques.')
+            .setDescription('Affiche l’état de santé du bot et les statistiques.'),
     
         new SlashCommandBuilder()
             .setName('join')
