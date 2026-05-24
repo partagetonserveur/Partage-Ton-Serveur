@@ -100,7 +100,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4256585;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4259232;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -111,7 +111,7 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '⚡ Statut du Système', value: '🟢 Fonctionnel & Actif', inline: true },
                 { name: '📡 Latence (Ping)', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
                 { name: '💾 Mémoire RAM', value: `\`${usageMemoire} MB\` / \`512 MB\``, inline: true },
-                { name: '👥 Protection Active', value: `\`${totalMembres.toLocaleString()}\` membres`, inline: true }, // ✅ Correction syntaxe ici
+                { name: '👥 Protection Active', value: `\`${totalMembres.toLocaleString()}\` membres`, inline: true },
                 { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
                 
@@ -459,7 +459,7 @@ async function verifierContenuMessage(message, content) {
     if (!content || !message.guild) return false;
     if (message.member?.permissions.has('Administrator') || message.member?.permissions.has('ManageMessages')) return false;
 
-    const contentLower = content.toLowerCase().trim(); // ✅ Correction .toLowerCase() ici
+    const contentLower = content.toLowerCase().trim();
     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
 
     if (regexPhishing.test(contentLower)) {
@@ -485,7 +485,11 @@ async function verifierContenuMessage(message, content) {
         if (lettresUniquement.length > 0) {
             const majuscules = lettresUniquement.replace(/[^A-Z]/g, "").length;
             if ((majuscules / lettresUniquement.length) * 100 > 85) {
-                try { await message.delete().catch(() => {}); return true; } catch (err) { console.error(err); }
+                try { 
+                    await message.delete().catch(() => {}); 
+                    if (logChannel) await logChannel.send(`⚠️ **[SPAM MAJUSCULES]** ⚠️\n• **Auteur :** ${message.author}\n• **Action :** Message supprimé.`);
+                    return true; 
+                } catch (err) { console.error(err); }
             }
         }
     }
@@ -526,11 +530,11 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
 });
 
 client.on('messageDelete', async (message) => {
-    if (!message.guild || message.author?.bot) return;
+    if (!message.guild || (message.author && message.author.bot)) return;
     const activityLogChannel = message.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
     if (!activityLogChannel) return;
 
-    const deleteEmbed = new EmbedBuilder().setColor('#e74c3c').setTitle('🗑️ TEXTE : MESSAGE SUPPRIMÉ').setDescription(`• **Auteur :** ${message.author}\n• **Salon :** ${message.channel}`)
+    const deleteEmbed = new EmbedBuilder().setColor('#e74c3c').setTitle('🗑️ TEXTE : MESSAGE SUPPRIMÉ').setDescription(`• **Auteur :** ${message.author || "*Auteur inconnu (Cache vidé)*"}\n• **Salon :** ${message.channel}`)
         .addFields({ name: '📄 Contenu détruit', value: message.content || "*[Image / Fichier / Embed]*" }).setTimestamp();
     await activityLogChannel.send({ embeds: [deleteEmbed] }).catch(() => {});
 });
@@ -642,10 +646,18 @@ client.on('messageCreate', async (message) => {
     }
 
     const NOW = Date.now();
+    
+    // 🤖 LOGS AJOUTÉS POUR L'ANTI-TOKEN JOIN RAID
     if (tempsArriveeMembres.has(userId) && NOW - tempsArriveeMembres.get(userId) < 100) {
-        try { await message.delete().catch(() => {}); await message.member.timeout(3600000, "Token").catch(() => {}); return; } catch (err) { console.error(err); }
+        try { 
+            await message.delete().catch(() => {}); 
+            await message.member.timeout(3600000, "Token").catch(() => {}); 
+            if (logChannel) await logChannel.send(`🤖 **[TOKEN DE RAID DÉTECTÉ]** 🤖\n• **Auteur :** ${message.author}\n• **Action :** Message supprimé + Mute 1h.`);
+            return; 
+        } catch (err) { console.error(err); }
     }
 
+    // 📱 LOGS AJOUTÉS POUR L'ANTI-SELFBOT MULTI-SALON
     if (!historiqueSalons.has(userId)) {
         historiqueSalons.set(userId, { temps: NOW, salonId: message.channel.id });
     } else {
@@ -654,7 +666,10 @@ client.on('messageCreate', async (message) => {
             try {
                 await message.delete().catch(() => {});
                 const member = message.member || await message.guild.members.fetch(userId).catch(() => null);
-                if (member) await member.timeout(3600000, "Selfbot").catch(() => {});
+                if (member) {
+                    await member.timeout(3600000, "Selfbot").catch(() => {});
+                    if (logChannel) await logChannel.send(`📱 **[SELFBOT / MULTI-SALON DETECTÉ]** 📱\n• **Auteur :** ${message.author}\n• **Action :** Message supprimé + Mute 1h.`);
+                }
                 historiqueSalons.delete(userId); return;
             } catch (err) { console.error(err); }
         }
