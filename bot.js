@@ -23,7 +23,7 @@ const client = new Client({
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 
 // 🆔 ID du salon pour les logs d'ACTIVITÉ classiques
-const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "78597047245864980"; 
+const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
 
 const historiqueSalons = new Map();
 const tempsArriveeMembres = new Map(); 
