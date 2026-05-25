@@ -632,7 +632,7 @@ client.on('messageCreate', async (message) => {
     if (!message.guild) return;
     if (message.author.bot) return;
 
-    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4256585;
+    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4263795;
     totalMessagesParServeur.set(message.guild.id, totalActuel + 1);
 
     if (message.author.id === client.user.id) return;
