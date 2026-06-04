@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder, UserFlags } = require('discord.js');
+const { Client, GatewayIntentBits, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder, Partials } = require('discord.js');
 const { joinVoiceChannel } = require('@discordjs/voice'); 
 const { LogisticRegressionClassifier } = require('natural'); // 🧠 Importation du moteur de l'IA
 const axios = require('axios');
@@ -16,15 +16,19 @@ const client = new Client({
         GatewayIntentBits.GuildModeration, 
         GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildExpressions
-    ] 
+        GatewayIntentBits.GuildExpressions,
+        GatewayIntentBits.DirectMessages // 📬 Essentiel pour le ModMail
+    ],
+    partials: [Partials.Channel] // 📥 Permet de lire les messages dans les salons privés (DMs)
 });
 
-// 🆔 ID du salon pour les alertes de PROTECTION et d'URGENCE
+// 🆔 Configuration des salons (Remplis avec tes IDs)
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
-
-// 🆔 ID du salon pour les logs d'ACTIVITÉ classiques
 const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
+const MODMAIL_CHANNEL_ID = process.env.MODMAIL_CHANNEL_ID || "TON_ID_SALON_MODMAIL"; // 📬 Salon où le staff reçoit les tickets
+
+// Mappings de stockage pour le ModMail (Associe l'ID utilisateur <-> Salon/Messages)
+const modmailTickets = new Map(); 
 
 const historiqueSalons = new Map();
 const tempsArriveeMembres = new Map(); 
@@ -59,7 +63,6 @@ const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|med
 // ==========================================
 const aiClassifier = new LogisticRegressionClassifier();
 
-// --- TIROIR 1 : INSULTES ET GROSSIÈRETÉS ---
 aiClassifier.addDocument('fdp grosse merde tu vaux rien', 'insulte_toxicite');
 aiClassifier.addDocument('ferme ta gueule fils de', 'insulte_toxicite');
 aiClassifier.addDocument('connard va te faire foutre', 'insulte_toxicite');
@@ -72,7 +75,6 @@ aiClassifier.addDocument('espece de debile mental', 'insulte_toxicite');
 aiClassifier.addDocument('connasse', 'insulte_toxicite');
 aiClassifier.addDocument('batar', 'insulte_toxicite');
 
-// --- TIROIR 2 : COMPORTEMENT TOXIQUE / PROVOCATION / HARCÈLEMENT ---
 aiClassifier.addDocument('tu sers a rien va te suicider', 'insulte_toxicite');
 aiClassifier.addDocument('on va te harceler sale victime', 'insulte_toxicite');
 aiClassifier.addDocument('toute facon t es qu une merde humaine', 'insulte_toxicite');
@@ -81,20 +83,17 @@ aiClassifier.addDocument('t es la honte du serveur casse toi', 'insulte_toxicite
 aiClassifier.addDocument('sale hater on va te faire la misere', 'insulte_toxicite');
 aiClassifier.addDocument('t es trop moche degage', 'insulte_toxicite');
 
-// --- TIROIR 3 : DANGER RAID & MENACES DE CRASH ---
 aiClassifier.addDocument('je vais détruire ton serveur', 'danger_raid');
 aiClassifier.addDocument('ce soir on va nuke le discord', 'danger_raid');
 aiClassifier.addDocument('raid massif en cours connectez les bots', 'danger_raid');
 aiClassifier.addDocument('on va crash le serveur mdr', 'danger_raid');
 
-// --- TIROIR 4 : COMPORTEMENT NORMAL (SAFE) ---
 aiClassifier.addDocument('bonjour je voudrais de l aide s’il vous plaît', 'safe');
 aiClassifier.addDocument('super ton serveur j adore le projet', 'safe');
 aiClassifier.addDocument('comment on devient moderateur ici', 'safe');
 aiClassifier.addDocument('salut ça va l’équipe', 'safe');
 aiClassifier.addDocument('merci pour votre réponse rapide', 'safe');
 
-// Entraînement initial de l'IA
 aiClassifier.train();
 
 client.on('ready', async () => {
@@ -104,7 +103,6 @@ client.on('ready', async () => {
         totalMessagesParServeur.set(guildId, 4308468);
     }
     
-    // ⚙️ Déclaration des Slash Commands
     const commands = [
         new SlashCommandBuilder().setName('status').setDescription('Affiche l’état de santé du bot et les statistiques.'),
         new SlashCommandBuilder().setName('join').setDescription('Fait rejoindre le bot dans votre salon vocal actuel.'),
@@ -125,71 +123,112 @@ client.on('ready', async () => {
 });
 
 // ==========================================
-// ⚡ SURVEILLANCE DES MESSAGES (SÉCURITÉ & IA)
+// ⚡ SURVEILLANCE DES MESSAGES & MODMAIL
 // ==========================================
 client.on('messageCreate', async (message) => {
-    if (!message.guild || message.author?.bot) return;
+    if (message.author?.bot) return;
 
-    // Incrémentation du compteur de messages scannés
+    // 📬 SECTION MODMAIL (Messages privés reçus par le bot)
+    if (!message.guild) {
+        const modmailChannel = client.channels.cache.get(MODMAIL_CHANNEL_ID);
+        if (!modmailChannel) return console.log("⚠️ Salon ModMail introuvable. Vérifie MODMAIL_CHANNEL_ID.");
+
+        // On enregistre qui utilise ce ticket
+        modmailTickets.set(message.author.id, { lastMessage: Date.now() });
+
+        const dmEmbed = new EmbedBuilder()
+            .setColor('#ffa500')
+            .setAuthor({ name: `ModMail de ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
+            .setDescription(message.content || "*Pas de texte (Pièce jointe ?)*")
+            .addFields({ name: '🆔 ID de l\'utilisateur', value: `\`${message.author.id}\`` })
+            .setFooter({ text: "Pour répondre, utilise : [ID] Ton message" })
+            .setTimestamp();
+
+        // Si l'utilisateur envoie une image
+        if (message.attachments.size > 0) {
+            dmEmbed.setImage(message.attachments.first().url);
+        }
+
+        await modmailChannel.send({ embeds: [dmEmbed] });
+        return await message.react('📩').catch(() => {}); // Confirme au membre que c'est envoyé
+    }
+
+    // 📬 SECTION MODMAIL (Réponse du staff depuis le salon ModMail)
+    if (message.guild && message.channel.id === MODMAIL_CHANNEL_ID) {
+        // Format attendu pour le staff : [ID_UTILISATEUR] Message de réponse
+        const args = message.content.match(/^\[(\d+)\]\s+(.+)/s);
+        if (!args) return; // Si ça ne commence pas par [ID], on ignore (permet au staff de parler entre eux)
+
+        const userId = args[1];
+        const replyContent = args[2];
+
+        const targetUser = await client.users.fetch(userId).catch(() => null);
+        if (!targetUser) return message.reply("❌ Utilisateur introuvable. Vérifie l'ID.");
+
+        const replyEmbed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setAuthor({ name: "Réponse du Support / Staff", iconURL: message.guild.iconURL() })
+            .setDescription(replyContent)
+            .setTimestamp();
+
+        try {
+            await targetUser.send({ embeds: [replyEmbed] });
+            await message.react('✅');
+        } catch (err) {
+            await message.reply("❌ Impossible d'envoyer le message privé à cet utilisateur (DMs fermés).");
+        }
+        return;
+    }
+
+    // --- RESTE DU SÉCURITE CODE ---
     const guildId = message.guild.id;
     const currentCount = totalMessagesParServeur.get(guildId) || 4308468;
     totalMessagesParServeur.set(guildId, currentCount + 1);
 
-    // Si c'est un modérateur/admin, on bypass l'analyse
     if (message.member?.permissions.has('Administrator') || message.member?.permissions.has('ManageMessages')) return;
 
-    // 1. Nettoyage du texte pour l'IA (Supprime les points, tirets, espaces cachés)
-    const texteNettoye = message.content
-        .toLowerCase()
-        .replace(/[\.\-\_\,\?\!\;\:\/\s\*]/g, '');
-
+    const texteNettoye = message.content.toLowerCase().replace(/[\.\-\_\,\?\!\;\:\/\s\*]/g, '');
     if (!texteNettoye) return;
 
-    // 2. L'IA analyse l'intention globale
     const verdictIA = aiClassifier.classify(texteNettoye);
     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
 
-    // 🛑 CAS IA N°1 : INSULTE OU COMPORTEMENT TOXIQUE DÉTECTÉ
     if (verdictIA === 'insulte_toxicite') {
         await message.delete().catch(() => {});
-
         if (message.member && message.member.moderatable) {
-            await message.member.timeout(10 * 60 * 1000, "IA : Insulte ou comportement toxique").catch(() => {});
+            await message.member.timeout(10 * 60 * 1000, "IA : Insulte ou comportement toxic").catch(() => {});
         }
-
-        const alerte = await message.channel.send(`⚠️ ${message.author}, les insultes et les comportements toxiques sont strictement interdits ici. Merci de rester respectueux.`);
+        const alerte = await message.channel.send(`⚠️ ${message.author}, les insultes sont interdites ici.`);
         setTimeout(() => alerte.delete().catch(() => {}), 5000);
 
         if (logChannel) {
-            await logChannel.send(`🤬 **MODÉRATION IA : TOXICITÉ/INSULTE**\n• **Membre :** ${message.author.tag} (${message.author.id})\n• **Salon :** <#${message.channel.id}>\n• **Message d'origine :** *${message.content}*\n• **Action :** Message supprimé + Mute 10 minutes.`).catch(() => {});
+            await logChannel.send(`🤬 **MODÉRATION IA : TOXICITÉ**\n• **Membre :** ${message.author.tag}\n• **Texte :** *${message.content}*\n• Action : Supprimé + Mute 10m.`).catch(() => {});
         }
         return; 
     }
 
-    // 🚨 CAS IA N°2 : MENACE DE RAID OU DE NUKE INTERCEPTÉE
     if (verdictIA === 'danger_raid') {
         await message.delete().catch(() => {});
-
         if (message.member && message.member.moderatable) {
-            await message.member.timeout(60 * 60 * 1000, "IA : Menace de Raid/Nuke").catch(() => {});
+            await message.member.timeout(60 * 60 * 1000, "IA : Menace Raid").catch(() => {});
         }
-
         if (logChannel) {
-            await logChannel.send(`🚨 **MODÉRATION IA : MENACE DE RAID**\n• **Membre :** ${message.author.tag} (${message.author.id})\n• **Message d'origine :** *${message.content}*\n• **Action :** Message supprimé + Mute 1 heure.`).catch(() => {});
+            await logChannel.send(`🚨 **MODÉRATION IA : RAID**\n• **Membre :** ${message.author.tag}\n• **Texte :** *${message.content}*\n• Action : Supprimé + Mute 1h.`).catch(() => {});
         }
         return; 
     }
 
-    // 3. Si l'IA n'a rien trouvé, on passe aux filtres classiques de ton bot (Anti-Scam, Phishing, Majuscules...)
     await verifierContenuMessage(message, message.content);
 });
 
+// ==========================================
+// ⚡ RESTE DES ÉVÉNEMENTS DISCORD (SANS MODIF)
+// ==========================================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     const guildId = interaction.guildId;
     if (!guildId) return;
 
-    // 📊 COMMANDE : STATUS
     if (interaction.commandName === 'status') {
         let totalSeconds = (client.uptime / 1000);
         let days = Math.floor(totalSeconds / 86400); totalSeconds %= 86400;
@@ -224,7 +263,6 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({ embeds: [statusEmbed] });
     }
 
-    // 🔊 COMMANDE : JOIN
     if (interaction.commandName === 'join') {
         const member = interaction.member;
         if (!member.voice.channel) return await interaction.reply({ content: "❌ Tu dois être en vocal !", ephemeral: true });
@@ -240,7 +278,6 @@ client.on('interactionCreate', async (interaction) => {
         } catch (error) { await interaction.reply({ content: "❌ Erreur connexion vocal.", ephemeral: true }); }
     }
 
-    // 🌤️ COMMANDE : METEO
     if (interaction.commandName === 'meteo') {
         const ville = interaction.options.getString('ville');
         await interaction.deferReply(); 
@@ -424,7 +461,7 @@ client.on('guildMemberRemove', async (member) => {
 
         if (activityLogChannel && !kickLog) {
             const embedLeave = new EmbedBuilder().setColor('#7f8c8d').setTitle('👥 MEMBRE : A QUITTÉ LE SERVEUR').setDescription(`• **Utilisateur :** ${member.user.tag} (${member.user})`).setTimestamp();
-            await activityLogChannel.send({ embeds: [embedLeave] }).catch(() => {});
+            await activityLogChannel.send({ embeds: [leaveEmbed] }).catch(() => {});
         }
 
         if (!kickLog) return;
@@ -580,7 +617,6 @@ async function verifierContenuMessage(message, content) {
     return false;
 }
 
-// Suivi des Webhooks (Anti-Nuke Webhooks)
 client.on('webhooksUpdate', async (channel) => {
     if (!channel.guild) return;
     try {
