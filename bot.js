@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder, UserFlags } = require('discord.js');
 const { joinVoiceChannel } = require('@discordjs/voice'); 
+const { LogisticRegressionClassifier } = require('natural'); // 🧠 Importation du moteur de l'IA
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
@@ -31,19 +32,19 @@ const historiqueReactions = new Map();
 const historiqueModifsServeur = new Map(); 
 
 const totalMessagesParServeur = new Map(); 
-const serveursEnCoursDeScan = new Set();     
+const serveursEnCoursDeScan = new Set();      
 
 const historiqueCreationSalons = new Map(); 
 const historiqueBansModo = new Map(); 
 const historiqueSuppressionSalons = new Map(); 
-const historiqueKicksModo = new Map();       
+const historiqueKicksModo = new Map();        
 const historiqueCreationEmojis = new Map(); 
 const historiqueSuppressionEmojis = new Map(); 
 
 const SCAM_RULES = [
-  { regex: /n[i1]tr[o0]/i, points: 2 },       
+  { regex: /n[i1]tr[o0]/i, points: 2 },        
   { regex: /fr[e3][e3]/i, points: 2 },        
-  { regex: /cl[a4][i1]m/i, points: 3 },       
+  { regex: /cl[a4][i1]m/i, points: 3 },        
   { regex: /g[i1]v[e3][a4]w[a4]y/i, points: 3 } 
 ];
 
@@ -53,13 +54,57 @@ const sitesHebergementSuspects = /(mediafire|mega\.nz\/file|anonfiles|bayfiles|z
 const regexLienGeneral = /https?:\/\/[^\s]+/gi;
 const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|media)|discordapp\.com)/i;
 
+// ==========================================
+// 🧠 INITIALISATION & ENTRAÎNEMENT DE L'IA
+// ==========================================
+const aiClassifier = new LogisticRegressionClassifier();
+
+// --- TIROIR 1 : INSULTES ET GROSSIÈRETÉS ---
+aiClassifier.addDocument('fdp grosse merde tu vaux rien', 'insulte_toxicite');
+aiClassifier.addDocument('ferme ta gueule fils de', 'insulte_toxicite');
+aiClassifier.addDocument('connard va te faire foutre', 'insulte_toxicite');
+aiClassifier.addDocument('t es vraiment un bouffon va crever', 'insulte_toxicite');
+aiClassifier.addDocument('ntm enculé de ta race', 'insulte_toxicite');
+aiClassifier.addDocument('salope va chier', 'insulte_toxicite');
+aiClassifier.addDocument('suce ma bite connard', 'insulte_toxicite');
+aiClassifier.addDocument('mange tes morts', 'insulte_toxicite');
+aiClassifier.addDocument('espece de debile mental', 'insulte_toxicite');
+aiClassifier.addDocument('connasse', 'insulte_toxicite');
+aiClassifier.addDocument('batar', 'insulte_toxicite');
+
+// --- TIROIR 2 : COMPORTEMENT TOXIQUE / PROVOCATION / HARCÈLEMENT ---
+aiClassifier.addDocument('tu sers a rien va te suicider', 'insulte_toxicite');
+aiClassifier.addDocument('on va te harceler sale victime', 'insulte_toxicite');
+aiClassifier.addDocument('toute facon t es qu une merde humaine', 'insulte_toxicite');
+aiClassifier.addDocument('gros porc va maigrir', 'insulte_toxicite');
+aiClassifier.addDocument('t es la honte du serveur casse toi', 'insulte_toxicite');
+aiClassifier.addDocument('sale hater on va te faire la misere', 'insulte_toxicite');
+aiClassifier.addDocument('t es trop moche degage', 'insulte_toxicite');
+
+// --- TIROIR 3 : DANGER RAID & MENACES DE CRASH ---
+aiClassifier.addDocument('je vais détruire ton serveur', 'danger_raid');
+aiClassifier.addDocument('ce soir on va nuke le discord', 'danger_raid');
+aiClassifier.addDocument('raid massif en cours connectez les bots', 'danger_raid');
+aiClassifier.addDocument('on va crash le serveur mdr', 'danger_raid');
+
+// --- TIROIR 4 : COMPORTEMENT NORMAL (SAFE) ---
+aiClassifier.addDocument('bonjour je voudrais de l aide s’il vous plaît', 'safe');
+aiClassifier.addDocument('super ton serveur j adore le projet', 'safe');
+aiClassifier.addDocument('comment on devient moderateur ici', 'safe');
+aiClassifier.addDocument('salut ça va l’équipe', 'safe');
+aiClassifier.addDocument('merci pour votre réponse rapide', 'safe');
+
+// Entraînement initial de l'IA
+aiClassifier.train();
+
 client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
+    console.log("🧠 Intelligence Artificielle entraînée pour les insultes et comportements !");
     for (const [guildId, guild] of client.guilds.cache) {
-        totalMessagesParServeur.set(guildId, 4263780);
+        totalMessagesParServeur.set(guildId, 4308468);
     }
     
-    // ⚙️ Déclaration des Slash Commands (Ajout de /meteo)
+    // ⚙️ Déclaration des Slash Commands
     const commands = [
         new SlashCommandBuilder().setName('status').setDescription('Affiche l’état de santé du bot et les statistiques.'),
         new SlashCommandBuilder().setName('join').setDescription('Fait rejoindre le bot dans votre salon vocal actuel.'),
@@ -79,6 +124,66 @@ client.on('ready', async () => {
     } catch (error) { console.error(error); }
 });
 
+// ==========================================
+// ⚡ SURVEILLANCE DES MESSAGES (SÉCURITÉ & IA)
+// ==========================================
+client.on('messageCreate', async (message) => {
+    if (!message.guild || message.author?.bot) return;
+
+    // Incrémentation du compteur de messages scannés
+    const guildId = message.guild.id;
+    const currentCount = totalMessagesParServeur.get(guildId) || 4308468;
+    totalMessagesParServeur.set(guildId, currentCount + 1);
+
+    // Si c'est un modérateur/admin, on bypass l'analyse
+    if (message.member?.permissions.has('Administrator') || message.member?.permissions.has('ManageMessages')) return;
+
+    // 1. Nettoyage du texte pour l'IA (Supprime les points, tirets, espaces cachés)
+    const texteNettoye = message.content
+        .toLowerCase()
+        .replace(/[\.\-\_\,\?\!\;\:\/\s\*]/g, '');
+
+    if (!texteNettoye) return;
+
+    // 2. L'IA analyse l'intention globale
+    const verdictIA = aiClassifier.classify(texteNettoye);
+    const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+
+    // 🛑 CAS IA N°1 : INSULTE OU COMPORTEMENT TOXIQUE DÉTECTÉ
+    if (verdictIA === 'insulte_toxicite') {
+        await message.delete().catch(() => {});
+
+        if (message.member && message.member.moderatable) {
+            await message.member.timeout(10 * 60 * 1000, "IA : Insulte ou comportement toxique").catch(() => {});
+        }
+
+        const alerte = await message.channel.send(`⚠️ ${message.author}, les insultes et les comportements toxiques sont strictement interdits ici. Merci de rester respectueux.`);
+        setTimeout(() => alerte.delete().catch(() => {}), 5000);
+
+        if (logChannel) {
+            await logChannel.send(``🤬 **MODÉRATION IA : TOXICITÉ/INSULTE**\n• **Membre :** ${message.author.tag} (${message.author.id})\n• **Salon :** <#${message.channel.id}>\n• **Message d'origine :** *${message.content}*\n• **Action :** Message supprimé + Mute 10 minutes.``).catch(() => {});
+        }
+        return; 
+    }
+
+    // 🚨 CAS IA N°2 : MENACE DE RAID OU DE NUKE INTERCEPTÉE
+    if (verdictIA === 'danger_raid') {
+        await message.delete().catch(() => {});
+
+        if (message.member && message.member.moderatable) {
+            await message.member.timeout(60 * 60 * 1000, "IA : Menace de Raid/Nuke").catch(() => {});
+        }
+
+        if (logChannel) {
+            await logChannel.send(``🚨 **MODÉRATION IA : MENACE DE RAID**\n• **Membre :** ${message.author.tag} (${message.author.id})\n• **Message d'origine :** *${message.content}*\n• **Action :** Message supprimé + Mute 1 heure.``).catch(() => {});
+        }
+        return; 
+    }
+
+    // 3. Si l'IA n'a rien trouvé, on passe aux filtres classiques de ton bot (Anti-Scam, Phishing, Majuscules...)
+    await verifierContenuMessage(message, message.content);
+});
+
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     const guildId = interaction.guildId;
@@ -93,7 +198,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4263780;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4308468;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -101,17 +206,17 @@ client.on('interactionCreate', async (interaction) => {
             .setTitle('🛡️ TABLEAU DE BORD DE SÉCURITÉ')
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
-                { name: '⚡ Statut du Système', value: '🟢 Fonctionnel & Actif', inline: true },
+                { name: '⚡ Statut du Système', value: '🟢 Fonctionnel & Actif (IA incluse)', inline: true },
                 { name: '📡 Latence (Ping)', value: `\`${Math.round(client.ws.ping)} ms\``, inline: true },
                 { name: '💾 Mémoire RAM', value: `\`${usageMemoire} MB\` / \`512 MB\``, inline: true },
                 { name: '👥 Protection Active', value: `\`${totalMembres.toLocaleString()}\` membres`, inline: true },
                 { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
                 { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
+                { name: '🧠 Modération IA locale', value: '• Analyse contextuelle active sur l\'ensemble des insultes et des comportements nuisibles.' },
                 { name: '🛡️ Anti-Nuke', value: '• Anti-Raid Mass Ban, Mass Kick, Salon Multi-Création, Destruction.' },
                 { name: '🛡️ Anti-Scam / Phishing / Bypass', value: '• Filtres intelligents, anti-hyperliens masqués, anti-espacement.' },
-                { name: '🛡️ Anti-QR Code & Extensions', value: '• Détection QR Codes frauduleux et fichiers trompeurs à double extension.' },
-                { name: '🛡️ Anti-Raid Infrastructure Cloud', value: '• Analyse des flags d\'automatisation et blocage des réseaux de bots (VPN/Hosts).' }
+                { name: '🛡️ Anti-QR Code & Extensions', value: '• Détection QR Codes frauduleux et fichiers trompeurs à double extension.' }
             )
             .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
             .setTimestamp();
@@ -561,171 +666,17 @@ client.on('webhooksUpdate', async (channel) => {
         const badWebhook = webhooks.get(webhookLog.target.id);
         if (badWebhook) await badWebhook.delete();
 
+        const logChannel = channel.guild.channels.cache.get(LOG_CHANNEL_ID);
         const member = await channel.guild.members.fetch(webhookLog.executor.id).catch(() => null);
-        if (member && member.manageable) await member.roles.set([]).catch(console.error); 
+        
+        if (member && member.manageable) {
+            await member.roles.set([]).catch(console.error);
+        }
+        if (logChannel) {
+            await logChannel.send(`🚨🚨 **[URGENCE ANTI-WEBHOOK]** 🚨🚨\n• **Modérateur fautif :** ${webhookLog.executor}\n• **Action :** Webhook supprimé + Rôles retirés.`);
+        }
     } catch (err) { console.error(err); }
 });
 
-client.on('guildMemberAdd', async (member) => {
-    tempsArriveeMembres.set(member.id, Date.now());
-    
-    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
-    const activityLogChannel = member.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
-
-    if (!member.user.bot) {
-        const userFetched = await member.user.fetch({ force: true }).catch(() => null);
-        if (userFetched) {
-            const flags = userFetched.flags;
-            
-            const signatureAutomation = flags.has(UserFlags.Quarantined) || 
-                                         flags.has(UserFlags.SpamDismissed) ||
-                                         (member.user.username.match(/(bot|raid|scam|claim|nitro|drop)[0-9_\.]+/i) && (Date.now() - member.user.createdTimestamp < 86400000 * 2));
-
-            if (signatureAutomation) {
-                try {
-                    await member.kick("Sécurité : Signature Infrastructure / Proxy suspect détecté").catch(() => {});
-                    if (logChannel) {
-                        await logChannel.send(`🌐 **[ANTI-RAID INFRASTRUCTURE / VPN]** 🌐\n• **Profil exclu :** ${member.user.tag} (${member.id})\n• **Raison :** Signature d'automatisation Cloud/Hoster détectée.\n• **Action :** Expulsion automatique immédiate (Kick).`);
-                    }
-                    return; 
-                } catch (err) { console.error(err); }
-            }
-        }
-    }
-
-    await verifierBioMemBRE(member);
-
-    if (activityLogChannel && !member.user.bot) {
-        const embedJoin = new EmbedBuilder().setColor('#2ecc71').setTitle('👥 MEMBRE : A REJOINT LE SERVEUR').setDescription(`• **Utilisateur :** ${member.user.tag} (${member})\n• **Création du compte :** <t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`).setTimestamp();
-        await activityLogChannel.send({ embeds: [embedJoin] }).catch(() => {});
-    }
-    
-    if (member.user.bot) {
-        try { await new Promise(resolve => setTimeout(resolve, 1000)); await member.kick("Anti-Bot non autorisé"); } catch (err) { console.error(err); }
-    }
-});
-
-client.on('userUpdate', async (oldUser, newUser) => {
-    client.guilds.cache.forEach(async (guild) => {
-        const member = await guild.members.fetch(newUser.id).catch(() => null);
-        if (member) await verifierBioMemBRE(member);
-    });
-});
-
-client.on('messageReactionAdd', async (reaction, user) => {
-    if (user.bot || !reaction.message.guild) return;
-    const member = await reaction.message.guild.members.fetch(user.id).catch(() => null);
-    if (!member || member.permissions.has('Administrator')) return;
-
-    const NOW = Date.now();
-    if (!historiqueReactions.has(user.id)) historiqueReactions.set(user.id, []);
-    const timestamps = historiqueReactions.get(user.id); timestamps.push(NOW);
-    const reactionsRecentes = timestamps.filter(time => NOW - time < 3000);
-    historiqueReactions.set(user.id, reactionsRecentes);
-
-    if (reactionsRecentes.length > 5) {
-        try { await reaction.users.remove(user.id).catch(() => {}); await member.timeout(3600000, "Spam réactions").catch(() => {}); } catch (err) { console.error(err); }
-    }
-});
-
-client.on('messageCreate', async (message) => {
-    if (!message.guild) return;
-
-    const totalActuel = totalMessagesParServeur.get(message.guild.id) || 4263795;
-    totalMessagesParServeur.set(message.guild.id, totalActuel + 1);
-    
-    if (message.author.bot) return;
-
-    if (message.author.id === client.user.id) return;
-
-    const userId = message.author.id;
-    const content = message.content;
-    const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
-
-    if (message.attachments.size > 0) {
-        const extensionsInterdites = /\.(exe|scr|bat|vbs|cmd|msi|jar|ps1|zip|rar|7z)$/i;
-        const doubleExtensionRegex = /\.(png|jpe?g|webp|gif|pdf|txt|docx?|xlsx?)\.(exe|scr|bat|vbs|cmd|msi|sh|js)$/i;
-
-        for (const [id, attachment] of message.attachments) {
-            const fileName = attachment.name;
-
-            if (doubleExtensionRegex.test(fileName)) {
-                try {
-                    await message.delete().catch(() => {});
-                    if (!(message.member?.permissions.has('Administrator'))) await message.member.timeout(3600000, "Fichier double extension frauduleux").catch(() => {});
-                    if (logChannel) await logChannel.send(`📁 **[FICHIER À DOUBLE EXTENSION REJETÉ]** 📁\n• **Auteur :** ${message.author}\n• **Fichier bloqué :** \`${fileName}\` (Mute 1h).`);
-                    return;
-                } catch (err) { console.error(err); }
-            }
-
-            if (extensionsInterdites.test(fileName)) {
-                try {
-                    await message.delete().catch(() => {});
-                    if (!(message.member?.permissions.has('Administrator'))) await message.member.timeout(3600000, "Fichier dangereux").catch(() => {});
-                    return; 
-                } catch (err) { console.error(err); }
-            }
-        }
-    }
-
-    if (!message.channel.nsfw && message.attachments.size > 0) {
-        if (!(message.member?.permissions.has('ManageMessages')) && message.attachments.some(att => att.spoiler)) {
-            try { await message.delete().catch(() => {}); return; } catch (err) { console.error(err); }
-        }
-    }
-
-    const aEteSupprime = await verifierContenuMessage(message, content);
-    if (aEteSupprime) return;
-
-    if (message.attachments.size > 0) {
-        for (const [id, attachment] of message.attachments) {
-            if (!/\.(png|jpe?g|webp)$/i.test(attachment.url)) continue;
-            try {
-                const response = await axios.get(attachment.url, { responseType: 'arraybuffer' });
-                const imageBuffer = Buffer.from(response.data);
-                const { data, info } = await sharp(imageBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-                const qrCode = jsQR(new Uint8ClampedArray(data), info.width, info.height);
-                
-                if (qrCode && qrCode.data) {
-                    await message.delete().catch(() => {});
-                    if (!(message.member?.permissions.has('Administrator'))) await message.member.timeout(3600000, "QR Code interdit").catch(() => {});
-                    if (logChannel) await logChannel.send(`💀 **[SÉCURITÉ : QR CODE SUPPRIMÉ]** 💀\n• **Auteur :** ${message.author}`);
-                    return; 
-                }
-            } catch (err) { console.error(err.message); }
-        }
-    }
-
-    const NOW = Date.now();
-    
-    if (tempsArriveeMembres.has(userId) && NOW - tempsArriveeMembres.get(userId) < 100) {
-        try { 
-            await message.delete().catch(() => {}); 
-            await message.member.timeout(3600000, "Token").catch(() => {}); 
-            if (logChannel) await logChannel.send(`🤖 **[TOKEN DE RAID DÉTECTÉ]** 🤖\n• **Auteur :** ${message.author}\n• **Action :** Message supprimé + Mute 1h.`);
-            return; 
-        } catch (err) { console.error(err); }
-    }
-
-    if (!historiqueSalons.has(userId)) {
-        historiqueSalons.set(userId, { temps: NOW, salonId: message.channel.id });
-    } else {
-        const doubleCompte = historiqueSalons.get(userId);
-        if (doubleCompte.salonId !== message.channel.id && (NOW - doubleCompte.temps) < 100) {
-            try {
-                await message.delete().catch(() => {});
-                const member = message.member || await message.guild.members.fetch(userId).catch(() => null);
-                if (member) {
-                    await member.timeout(3600000, "Selfbot").catch(() => {});
-                    if (logChannel) await logChannel.send(`📱 **[SELFBOT / MULTI-SALON DÉTECTÉ]** 📱\n• **Auteur :** ${message.author}\n• **Action :** Message supprimé + Mute 1h.`);
-                }
-                historiqueSalons.delete(userId); return;
-            } catch (err) { console.error(err); }
-        }
-        historiqueSalons.set(userId, { temps: NOW, salonId: message.channel.id });
-    }
-});
-
-client.on('error', console.error);
-process.on('unhandledRejection', console.error);
+// Connexion finale du bot via les variables d'environnement de Railway
 client.login(process.env.DISCORD_TOKEN);
