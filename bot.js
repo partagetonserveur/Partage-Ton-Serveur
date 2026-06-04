@@ -161,7 +161,7 @@ client.on('messageCreate', async (message) => {
         setTimeout(() => alerte.delete().catch(() => {}), 5000);
 
         if (logChannel) {
-            await logChannel.send(``🤬 **MODÉRATION IA : TOXICITÉ/INSULTE**\n• **Membre :** ${message.author.tag} (${message.author.id})\n• **Salon :** <#${message.channel.id}>\n• **Message d'origine :** *${message.content}*\n• **Action :** Message supprimé + Mute 10 minutes.``).catch(() => {});
+            await logChannel.send(`🤬 **MODÉRATION IA : TOXICITÉ/INSULTE**\n• **Membre :** ${message.author.tag} (${message.author.id})\n• **Salon :** <#${message.channel.id}>\n• **Message d'origine :** *${message.content}*\n• **Action :** Message supprimé + Mute 10 minutes.`).catch(() => {});
         }
         return; 
     }
@@ -175,7 +175,7 @@ client.on('messageCreate', async (message) => {
         }
 
         if (logChannel) {
-            await logChannel.send(``🚨 **MODÉRATION IA : MENACE DE RAID**\n• **Membre :** ${message.author.tag} (${message.author.id})\n• **Message d'origine :** *${message.content}*\n• **Action :** Message supprimé + Mute 1 heure.``).catch(() => {});
+            await logChannel.send(`🚨 **MODÉRATION IA : MENACE DE RAID**\n• **Membre :** ${message.author.tag} (${message.author.id})\n• **Message d'origine :** *${message.content}*\n• **Action :** Message supprimé + Mute 1 heure.`).catch(() => {});
         }
         return; 
     }
@@ -567,116 +567,45 @@ async function verifierContenuMessage(message, content) {
         if ((texteAffiche.includes('discord.com') || texteAffiche.includes('discord.gg') || texteAffiche.includes('http')) && !lienCache.includes('discord.com') && !lienCache.includes('discord.gg')) {
             try {
                 await message.delete().catch(() => {});
-                await message.member.timeout(3600000, `Hyperlien masqué trompeur`).catch(() => {});
-                if (logChannel) await logChannel.send(`🕵️ **[HYPERLIEN MASQUÉ INTERCEPTÉ]** 🕵️\n• **Auteur :** ${message.author}\n• **Action :** Message supprimé + Mute 1h.\n• **Contenu camouflé :** \`${matchMarkdown[0]}\``);
+                if (message.member && message.member.moderatable) {
+                    await message.member.timeout(3600000, `Hyperlien masqué suspect`).catch(() => {});
+                }
+                if (logChannel) {
+                    await logChannel.send(`🛡️ **[ANTI-HYPERLIEN]** Hyperlien masqué détecté chez ${message.author.tag}`).catch(() => {});
+                }
                 return true;
             } catch (err) { console.error(err); }
         }
     }
-
-    const versionAligneExplicite = contentLower.replace(/[\s\.]+/g, '');
-
-    if (regexPhishing.test(contentLower) || regexPhishing.test(versionAligneExplicite)) {
-        try {
-            await message.delete().catch(() => {});
-            await message.member.timeout(3600000, `Phishing`).catch(() => {});
-            if (logChannel) await logChannel.send(`💀 **[PHISHING BLOQUÉ]** 💀\n• **Auteur :** ${message.author}\n• **Action :** Détection standard ou par espacement contourné.`);
-            return true; 
-        } catch (err) { console.error(err); }
-    }
-
-    if (regexMalware.test(contentLower) || sitesHebergementSuspects.test(contentLower) || regexMalware.test(versionAligneExplicite)) {
-        try {
-            await message.delete().catch(() => {});
-            await message.member.timeout(3600000, "Lien Malware").catch(() => {});
-            if (logChannel) await logChannel.send(`🦠 **[LIEN MALWARE REJETÉ]** 🦠\n• **Auteur :** ${message.author}`);
-            return true;
-        } catch (err) { console.error(err); }
-    }
-
-    if (content.length > 20) {
-        const lettresUniquement = content.replace(/[^a-zA-Z]/g, "");
-        if (lettresUniquement.length > 0) {
-            const majuscules = lettresUniquement.replace(/[^A-Z]/g, "").length;
-            if ((majuscules / lettresUniquement.length) * 100 > 85) {
-                try { 
-                    await message.delete().catch(() => {}); 
-                    if (logChannel) await logChannel.send(`⚠️ **[SPAM MAJUSCULES]** ⚠️\n• **Auteur :** ${message.author}\n• **Action :** Message supprimé.`);
-                    return true; 
-                } catch (err) { console.error(err); }
-            }
-        }
-    }
-
-    let scamScore = 0;
-    SCAM_RULES.forEach(rule => { 
-        if (rule.regex.test(contentLower) || rule.regex.test(versionAligneExplicite)) scamScore += rule.points; 
-    });
-    if (scamScore >= 8) { try { await message.delete().catch(() => {}); return true; } catch (err) { console.error(err); } }
-    if (/[\u0300-\u036f]{4,}/g.test(content)) { try { await message.delete().catch(() => {}); return true; } catch (err) { console.error(err); } }
     return false;
 }
 
-client.on('messageUpdate', async (oldMessage, newMessage) => {
-    if (oldMessage.content === newMessage.content) return; 
-    if (!newMessage.guild || newMessage.author?.bot || oldMessage.author?.bot) return;
-
-    const logChannel = newMessage.guild.channels.cache.get(LOG_CHANNEL_ID);
-    const activityLogChannel = newMessage.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
-
-    if (newMessage.content.includes('@everyone') || newMessage.content.includes('@here')) {
-        if (!(newMessage.member?.permissions.has('Administrator') || newMessage.member?.permissions.has('MentionEveryone'))) {
-            try {
-                await newMessage.delete().catch(() => {});
-                await newMessage.member.timeout(3600000, "Ghost Mention").catch(() => {});
-                if (logChannel) await logChannel.send(`📢 **[BYPASS EVERYONE CONTRÉ]** 📢\n• **Auteur :** ${newMessage.author}`);
-                return;
-            } catch (err) { console.error(err); }
-        }
-    }
-
-    const aEteSupprime = await verifierContenuMessage(newMessage, newMessage.content);
-    if (aEteSupprime) return;
-
-    if (activityLogChannel) {
-        const modifEmbed = new EmbedBuilder().setColor('#3498db').setTitle('📝 TEXTE : MESSAGE MODIFIÉ').setDescription(`• **Auteur :** ${newMessage.author}\n• **Salon :** ${newMessage.channel}`)
-            .addFields({ name: '❌ Ancien Contenu', value: oldMessage.content || "*Vide*" }, { name: '✅ Nouveau Contenu', value: newMessage.content || "*Vide*" }).setTimestamp();
-        await activityLogChannel.send({ embeds: [modifEmbed] }).catch(() => {});
-    }
-});
-
-client.on('messageDelete', async (message) => {
-    if (!message.guild || (message.author && message.author.bot)) return;
-    const activityLogChannel = message.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
-    if (!activityLogChannel) return;
-
-    const deleteEmbed = new EmbedBuilder().setColor('#e74c3c').setTitle('🗑️ TEXTE : MESSAGE SUPPRIMÉ').setDescription(`• **Auteur :** ${message.author || "*Auteur inconnu (Cache vidé)*"}\n• **Salon :** ${message.channel}`)
-        .addFields({ name: '📄 Contenu détruit', value: message.content || "*[Image / Fichier / Embed]*" }).setTimestamp();
-    await activityLogChannel.send({ embeds: [deleteEmbed] }).catch(() => {});
-});
-
+// Suivi des Webhooks (Anti-Nuke Webhooks)
 client.on('webhooksUpdate', async (channel) => {
+    if (!channel.guild) return;
     try {
-        await new Promise(resolve => setTimeout(resolve, 800)); 
+        await new Promise(resolve => setTimeout(resolve, 1000));
         const fetchedLogs = await channel.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.WebhookCreate });
         const webhookLog = fetchedLogs.entries.first();
-        if (!webhookLog || webhookLog.executor.id === client.user.id) return;
+        if (!webhookLog) return;
+        const { executor } = webhookLog;
+        if (executor.id === client.user.id || executor.id === channel.guild.ownerId) return;
 
         const webhooks = await channel.fetchWebhooks();
-        const badWebhook = webhooks.get(webhookLog.target.id);
-        if (badWebhook) await badWebhook.delete();
+        for (const webhook of webhooks.values()) {
+            if (webhook.owner.id === executor.id) {
+                await webhook.delete("Anti-Nuke Webhook").catch(() => {});
+            }
+        }
+
+        const memberStaff = await channel.guild.members.fetch(executor.id).catch(() => null);
+        if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
 
         const logChannel = channel.guild.channels.cache.get(LOG_CHANNEL_ID);
-        const member = await channel.guild.members.fetch(webhookLog.executor.id).catch(() => null);
-        
-        if (member && member.manageable) {
-            await member.roles.set([]).catch(console.error);
-        }
         if (logChannel) {
-            await logChannel.send(`🚨🚨 **[URGENCE ANTI-WEBHOOK]** 🚨🚨\n• **Modérateur fautif :** ${webhookLog.executor}\n• **Action :** Webhook supprimé + Rôles retirés.`);
+            await logChannel.send(`🚨🚨 **[URGENCE ANTI-WEBHOOK]** 🚨🚨\n• **Créateur :** ${executor}\n• **Action :** Webhook supprimé + Rôles retirés.`);
         }
     } catch (err) { console.error(err); }
 });
 
-// Connexion finale du bot via les variables d'environnement de Railway
 client.login(process.env.DISCORD_TOKEN);
