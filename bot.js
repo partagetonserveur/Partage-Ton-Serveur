@@ -89,7 +89,7 @@ const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|med
 client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
     for (const [guildId, guild] of client.guilds.cache) {
-        totalMessagesParServeur.set(guildId, 4263780);
+        totalMessagesParServeur.set(guildId, 4308500);
     }
     
     const commands = [
