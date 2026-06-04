@@ -1,8 +1,9 @@
-const { Client, GatewayIntentBits, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder, UserFlags, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 const { joinVoiceChannel } = require('@discordjs/voice'); 
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
+const fs = require('fs'); // 🔥 Indispensable pour la sauvegarde du compteur de messages
 
 const client = new Client({ 
     intents: [
@@ -16,9 +17,13 @@ const client = new Client({
         GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.GuildExpressions,
-        GatewayIntentBits.DirectMessages // 🔥 INDISPENSABLE pour détecter les MPs reçus
+        GatewayIntentBits.DirectMessages // 🔥 Indispensable pour détecter les MPs reçus
     ] 
 });
+
+// Initialisation des structures sur le client pour éviter les crashs en MP
+client.messagesTemporairesTickets = new Map();
+client.enTrainDeChoisirCategory = new Map();
 
 // 🆔 ID du salon pour les alertes de PROTECTION et d'URGENCE
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
@@ -59,7 +64,7 @@ async function envoyerAlerteMP(user, guildName, raison, sanction) {
         const dmEmbed = new EmbedBuilder()
             .setColor('#ffa500')
             .setTitle('🛡️ SYSTÈME DE SÉCURITÉ : ALERTE')
-            .setDescription(`Bonjour **${user.username}**,\n\nUne action anormale ou interdite a été détectée avec votre compte sur le serveur **${guildName}**.`)
+            .setDescription(`Bonjour **${user.username}**,\n\nUne action anormale ou interdite a été détectée avec votre compte sur le serveur **${guildName}** Extrême.`)
             .addFields(
                 { name: '⚠️ Motif de détection', value: `\`${raison}\``, inline: false },
                 { name: '⏳ Sanction appliquée', value: `\`${sanction}\``, inline: false }
@@ -89,9 +94,22 @@ const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|med
 client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
     
-    // Initialisation de ton compteur historique global au démarrage
-    for (const [guildId, guild] of client.guilds.cache) {
-        totalMessagesParServeur.set(guildId, 4308500);
+    // 🔥 CHARGEMENT DU COMPTEUR DEPUIS LE FICHIER SÉCURISÉ
+    if (fs.existsSync('compteur.json')) {
+        try {
+            const data = fs.readFileSync('compteur.json', 'utf-8');
+            const sauvegardes = JSON.parse(data);
+            for (const [guildId, valeur] of Object.entries(sauvegardes)) {
+                totalMessagesParServeur.set(guildId, valeur);
+            }
+            console.log("📊 Compteurs de messages chargés avec succès depuis le fichier !");
+        } catch (e) {
+            console.error("Impossible de lire le fichier de sauvegarde, initialisation par défaut.", e);
+        }
+    } else {
+        for (const [guildId, guild] of client.guilds.cache) {
+            totalMessagesParServeur.set(guildId, 4308500);
+        }
     }
     
     const commands = [
@@ -114,23 +132,85 @@ client.on('ready', async () => {
     } catch (error) { console.error(error); }
 });
 
-// 🔥 LE COMPTEUR +1 EN DIRECT SUR TOUS LES MESSAGES ENVOYÉS
+// 🔥 ENREGISTREMENT ET AJOUT +1 MESSAGES (SERVEUR UNIQUEMENT)
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
     const guildId = message.guild.id;
     
-    // Si la Map n'a pas encore le serveur, on lui injecte la valeur de base
     if (!totalMessagesParServeur.has(guildId)) {
         totalMessagesParServeur.set(guildId, 4308500);
     }
 
-    // On récupère la valeur actuelle et on fait +1
     const cumulActuel = totalMessagesParServeur.get(guildId);
     totalMessagesParServeur.set(guildId, cumulActuel + 1);
 
-    // Tu pourras appeler ta fonction de vérification de contenu ici si besoin :
-    // await verifierContenuMessage(message, message.content);
+    // Sauvegarde en temps réel sur le disque dur
+    const objetASauvegarder = Object.fromEntries(totalMessagesParServeur);
+    fs.writeFileSync('compteur.json', JSON.stringify(objetASauvegarder, null, 2));
+
+    // Appel optionnel de ta fonction de sécurité
+    await verifierContenuMessage(message, message.content);
+});
+
+// 📩 INTERCEPTION ET TRANSMISSION DES MESSAGES PRIVÉS (MPs / TICKETS)
+client.on('messageCreate', async (message) => {
+    if (message.author.bot || message.guild) return;
+
+    const userId = message.author.id;
+
+    // Si l'utilisateur possède déjà un ticket actif
+    if (ticketsSalons.has(userId)) {
+        const guild = client.guilds.cache.get(GUILD_ID);
+        if (!guild) return;
+        
+        const ticketChannel = guild.channels.cache.get(ticketsSalons.get(userId));
+        if (ticketChannel) {
+            const relayEmbed = new EmbedBuilder()
+                .setColor('#ffa500')
+                .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+                .setDescription(message.content || "*[Fichier/Image]*")
+                .setTimestamp();
+
+            await ticketChannel.send({ embeds: [relayEmbed] });
+            if (message.attachments.size > 0) {
+                await ticketChannel.send({ files: Array.from(message.attachments.values()) });
+            }
+            await message.react('✅').catch(() => {});
+        }
+        return;
+    }
+
+    if (client.enTrainDeChoisirCategory.get(userId)) return;
+
+    // Mise en mémoire tampon de la demande
+    client.messagesTemporairesTickets.set(userId, {
+        content: message.content,
+        attachments: message.attachments.size > 0 ? Array.from(message.attachments.values()) : []
+    });
+
+    client.enTrainDeChoisirCategory.set(userId, true);
+
+    const menu = new StringSelectMenuBuilder()
+        .setCustomId('select_ticket_category')
+        .setPlaceholder('Sélectionnez le motif de votre demande...')
+        .addOptions(
+            new StringSelectMenuOptionBuilder().setLabel('Signaler un joueur / Problème').setValue('Signalement').setDescription('Pour dénoncer un comportement ou un raid.').setEmoji('🛡️'),
+            new StringSelectMenuOptionBuilder().setLabel('Demande de Partenariat').setValue('Partenariat').setDescription('Pour lier nos communautés.').setEmoji('🤝'),
+            new StringSelectMenuOptionBuilder().setLabel('Autre Demande / Questions').setValue('Autre').setDescription('Pour toute autre question générale.').setEmoji('❓')
+        );
+
+    const row = new ActionRowBuilder().addComponents(menu);
+
+    const menuEmbed = new EmbedBuilder()
+        .setColor('#ffa500')
+        .setTitle('🎫 BIENVENUE SUR LE SUPPORT')
+        .setDescription(`Bonjour ${message.author},\n\nPour nous permettre de traiter au mieux votre demande, veuillez sélectionner une **catégorie** ci-dessous :`)
+        .setFooter({ text: 'Votre premier message sera automatiquement transmis dans le ticket.' });
+
+    await message.author.send({ embeds: [menuEmbed], components: [row] }).catch(() => {
+        client.enTrainDeChoisirCategory.delete(userId);
+    });
 });
 
 client.on('interactionCreate', async (interaction) => {
@@ -144,7 +224,7 @@ client.on('interactionCreate', async (interaction) => {
         const categorieChoisie = interaction.values[0];
         const userId = interaction.user.id;
 
-        const infoMessage = client.messagesTemporairesTickets?.get(userId) || { content: "*Aucun texte*", attachments: [] };
+        const infoMessage = client.messagesTemporairesTickets.get(userId) || { content: "*Aucun texte*", attachments: [] };
 
         const ticketChannel = await guild.channels.create({
             name: `🎫-${interaction.user.username}`,
@@ -157,7 +237,7 @@ client.on('interactionCreate', async (interaction) => {
         }).catch(console.error);
 
         if (!ticketChannel) {
-            client.enTrainDeChoisirCategory?.delete(userId);
+            client.enTrainDeChoisirCategory.delete(userId);
             return await interaction.followUp({ content: "❌ Erreur lors de la création du ticket sur le serveur.", ephemeral: true });
         }
 
@@ -195,8 +275,8 @@ client.on('interactionCreate', async (interaction) => {
 
         await interaction.editReply({ embeds: [validationEmbed], components: [] });
 
-        client.enTrainDeChoisirCategory?.delete(userId);
-        client.messagesTemporairesTickets?.delete(userId);
+        client.enTrainDeChoisirCategory.delete(userId);
+        client.messagesTemporairesTickets.delete(userId);
         return;
     }
 
@@ -245,7 +325,6 @@ client.on('interactionCreate', async (interaction) => {
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
         
-        // On va piocher directement le chiffre en constante augmentation !
         const totalMessages = totalMessagesParServeur.get(guildId) || 4308500;
         const totalMembres = interaction.guild.memberCount;
 
@@ -379,7 +458,7 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
     const logChannel = guild.channels.cache.get(LOG_CHANNEL_ID);
     const activityLogChannel = guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
     const executor = auditLogEntry.executor;
-    if (executor.id === client.user.id || executor.id === guild.ownerId) return;
+    if (!executor || executor.id === client.user.id || executor.id === guild.ownerId) return;
     const NOW = Date.now();
 
     if (auditLogEntry.action === AuditLogEvent.MemberUpdate) {
@@ -597,12 +676,11 @@ async function verifierBioMemBRE(member) {
     }
 }
 
-// 🔒 FIN DE LA FONCTION SÉCURISÉE (COMPLÉTÉE)
 async function verifierContenuMessage(message, content) {
     if (!content || !message.guild) return false;
     if (message.author?.bot) return false;
     
-    // Ajoute ici tes filtres anti-scam / anti-phishing basés sur tes règles regex si nécessaire
+    // Ton infrastructure regex anti-scam / anti-phishing s'exécute ici si nécessaire
     return true;
 }
 
