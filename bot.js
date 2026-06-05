@@ -132,85 +132,96 @@ client.on('ready', async () => {
     } catch (error) { console.error(error); }
 });
 
-// 🔥 ENREGISTREMENT ET AJOUT +1 MESSAGES (SERVEUR UNIQUEMENT)
+// 🔥 UNIQUE ÉCOUTEUR CENTRALISÉ DU FLUX DE MESSAGES (TOUT EST COMPTÉ SANS EXCEPTION)
 client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild) return;
+    // Aiguillage de l'ID : si c'est un MP/Ticket, on attribue la valeur à ton serveur principal
+    const targetGuildId = message.guild ? message.guild.id : GUILD_ID;
 
-    const guildId = message.guild.id;
-    
-    if (!totalMessagesParServeur.has(guildId)) {
-        totalMessagesParServeur.set(guildId, 4308500);
+    // Initialisation si le conteneur n'existe pas encore pour cette cible
+    if (!totalMessagesParServeur.has(targetGuildId)) {
+        totalMessagesParServeur.set(targetGuildId, 4308500);
     }
 
-    const cumulActuel = totalMessagesParServeur.get(guildId);
-    totalMessagesParServeur.set(guildId, cumulActuel + 1);
+    // Incrémentation (+1 global : humains, bots, serveurs, MPs, salons cachés)
+    const cumulActuel = totalMessagesParServeur.get(targetGuildId);
+    totalMessagesParServeur.set(targetGuildId, cumulActuel + 1);
 
-    // Sauvegarde en temps réel sur le disque dur
+    // Sauvegarde physique immédiate sur le stockage local
     const objetASauvegarder = Object.fromEntries(totalMessagesParServeur);
     fs.writeFileSync('compteur.json', JSON.stringify(objetASauvegarder, null, 2));
 
-    // Appel optionnel de ta fonction de sécurité
-    await verifierContenuMessage(message, message.content);
-});
+    // ==========================================
+    // 📩 BRANCHE : TRAITEMENT DES MESSAGES PRIVÉS
+    // ==========================================
+    if (!message.guild) {
+        // Si c'est un bot tiers qui parle en MP à ton bot, on arrête le script de support ici (mais le message a été compté !)
+        if (message.author.bot) return;
 
-// 📩 INTERCEPTION ET TRANSMISSION DES MESSAGES PRIVÉS (MPs / TICKETS)
-client.on('messageCreate', async (message) => {
-    if (message.author.bot || message.guild) return;
+        const userId = message.author.id;
 
-    const userId = message.author.id;
+        // Si l'utilisateur possède déjà un ticket actif
+        if (ticketsSalons.has(userId)) {
+            const guild = client.guilds.cache.get(GUILD_ID);
+            if (!guild) return;
+            
+            const ticketChannel = guild.channels.cache.get(ticketsSalons.get(userId));
+            if (ticketChannel) {
+                const relayEmbed = new EmbedBuilder()
+                    .setColor('#ffa500')
+                    .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+                    .setDescription(message.content || "*[Fichier/Image]*")
+                    .setTimestamp();
 
-    // Si l'utilisateur possède déjà un ticket actif
-    if (ticketsSalons.has(userId)) {
-        const guild = client.guilds.cache.get(GUILD_ID);
-        if (!guild) return;
-        
-        const ticketChannel = guild.channels.cache.get(ticketsSalons.get(userId));
-        if (ticketChannel) {
-            const relayEmbed = new EmbedBuilder()
-                .setColor('#ffa500')
-                .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-                .setDescription(message.content || "*[Fichier/Image]*")
-                .setTimestamp();
-
-            await ticketChannel.send({ embeds: [relayEmbed] });
-            if (message.attachments.size > 0) {
-                await ticketChannel.send({ files: Array.from(message.attachments.values()) });
+                await ticketChannel.send({ embeds: [relayEmbed] });
+                if (message.attachments.size > 0) {
+                    await ticketChannel.send({ files: Array.from(message.attachments.values()) });
+                }
+                await message.react('✅').catch(() => {});
             }
-            await message.react('✅').catch(() => {});
+            return;
         }
-        return;
+
+        if (client.enTrainDeChoisirCategory.get(userId)) return;
+
+        // Mise en mémoire tampon de la demande
+        client.messagesTemporairesTickets.set(userId, {
+            content: message.content,
+            attachments: message.attachments.size > 0 ? Array.from(message.attachments.values()) : []
+        });
+
+        client.enTrainDeChoisirCategory.set(userId, true);
+
+        const menu = new StringSelectMenuBuilder()
+            .setCustomId('select_ticket_category')
+            .setPlaceholder('Sélectionnez le motif de votre demande...')
+            .addOptions(
+                new StringSelectMenuOptionBuilder().setLabel('Signaler un joueur / Problème').setValue('Signalement').setDescription('Pour dénoncer un comportement ou un raid.').setEmoji('🛡️'),
+                new StringSelectMenuOptionBuilder().setLabel('Demande de Partenariat').setValue('Partenariat').setDescription('Pour lier nos communautés.').setEmoji('🤝'),
+                new StringSelectMenuOptionBuilder().setLabel('Autre Demande / Questions').setValue('Autre').setDescription('Pour toute autre question générale.').setEmoji('❓')
+            );
+
+        const row = new ActionRowBuilder().addComponents(menu);
+
+        const menuEmbed = new EmbedBuilder()
+            .setColor('#ffa500')
+            .setTitle('🎫 BIENVENUE SUR LE SUPPORT')
+            .setDescription(`Bonjour ${message.author},\n\nPour nous permettre de traiter au mieux votre demande, veuillez sélectionner une **catégorie** ci-dessous :`)
+            .setFooter({ text: 'Votre premier message sera automatiquement transmis dans le ticket.' });
+
+        await message.author.send({ embeds: [menuEmbed], components: [row] }).catch(() => {
+            client.enTrainDeChoisirCategory.delete(userId);
+        });
+    } 
+    // ==========================================
+    // 🛡️ BRANCHE : TRAITEMENT SUR SERVEUR
+    // ==========================================
+    else {
+        // On n'analyse pas le contenu textuel s'il s'agit d'un bot (évite les boucles de détection)
+        if (message.author.bot) return;
+
+        // Appel de ton infrastructure de sécurité
+        await verifierContenuMessage(message, message.content);
     }
-
-    if (client.enTrainDeChoisirCategory.get(userId)) return;
-
-    // Mise en mémoire tampon de la demande
-    client.messagesTemporairesTickets.set(userId, {
-        content: message.content,
-        attachments: message.attachments.size > 0 ? Array.from(message.attachments.values()) : []
-    });
-
-    client.enTrainDeChoisirCategory.set(userId, true);
-
-    const menu = new StringSelectMenuBuilder()
-        .setCustomId('select_ticket_category')
-        .setPlaceholder('Sélectionnez le motif de votre demande...')
-        .addOptions(
-            new StringSelectMenuOptionBuilder().setLabel('Signaler un joueur / Problème').setValue('Signalement').setDescription('Pour dénoncer un comportement ou un raid.').setEmoji('🛡️'),
-            new StringSelectMenuOptionBuilder().setLabel('Demande de Partenariat').setValue('Partenariat').setDescription('Pour lier nos communautés.').setEmoji('🤝'),
-            new StringSelectMenuOptionBuilder().setLabel('Autre Demande / Questions').setValue('Autre').setDescription('Pour toute autre question générale.').setEmoji('❓')
-        );
-
-    const row = new ActionRowBuilder().addComponents(menu);
-
-    const menuEmbed = new EmbedBuilder()
-        .setColor('#ffa500')
-        .setTitle('🎫 BIENVENUE SUR LE SUPPORT')
-        .setDescription(`Bonjour ${message.author},\n\nPour nous permettre de traiter au mieux votre demande, veuillez sélectionner une **catégorie** ci-dessous :`)
-        .setFooter({ text: 'Votre premier message sera automatiquement transmis dans le ticket.' });
-
-    await message.author.send({ embeds: [menuEmbed], components: [row] }).catch(() => {
-        client.enTrainDeChoisirCategory.delete(userId);
-    });
 });
 
 client.on('interactionCreate', async (interaction) => {
@@ -680,7 +691,6 @@ async function verifierContenuMessage(message, content) {
     if (!content || !message.guild) return false;
     if (message.author?.bot) return false;
     
-    // Ton infrastructure regex anti-scam / anti-phishing s'exécute ici si nécessaire
     return true;
 }
 
