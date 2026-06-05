@@ -1,4 +1,5 @@
-const { Client, GatewayIntentBits, Partials, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
+// 🔥 AJOUT DE PermissionFlagsBits DANS L'IMPORTATION POUR FIXER LA CRÉATION DE SALON
+const { Client, GatewayIntentBits, Partials, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, PermissionFlagsBits } = require('discord.js');
 const { joinVoiceChannel } = require('@discordjs/voice'); 
 const axios = require('axios');
 const sharp = require('sharp');
@@ -225,22 +226,28 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.deferUpdate(); 
 
         const guild = client.guilds.cache.get(GUILD_ID);
-        if (!guild) return;
+        if (!guild) return console.log("❌ Serveur introuvable. Vérifie ton GUILD_ID.");
 
         const categorieChoisie = interaction.values[0];
         const userId = interaction.user.id;
 
         const infoMessage = client.messagesTemporairesTickets.get(userId) || { content: "*Aucun texte*", attachments: [] };
 
+        // 🔥 FIX INJECTÉ ICI : REMPLACEMENT DE LA CHAINE BRUTE PAR PermissionFlagsBits.ViewChannel
         const ticketChannel = await guild.channels.create({
             name: `🎫-${interaction.user.username}`,
             type: 0,
             parent: SUPPORT_CATEGORY_ID,
             topic: `Ticket [${categorieChoisie}] pour ${interaction.user.tag}`,
             permissionOverwrites: [
-                { id: guild.roles.everyone.id, deny: ['ViewChannel'] }
+                { 
+                    id: guild.roles.everyone.id, 
+                    deny: [PermissionFlagsBits.ViewChannel] 
+                }
             ]
-        }).catch(console.error);
+        }).catch((err) => {
+            console.error("❌ Erreur lors de la création du salon textuel :", err);
+        });
 
         if (!ticketChannel) {
             client.enTrainDeChoisirCategory.delete(userId);
@@ -330,7 +337,7 @@ client.on('interactionCreate', async (interaction) => {
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
         
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4308500;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4309762;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -605,6 +612,7 @@ client.on('channelCreate', async (channel) => {
     } catch (err) { console.error(err); }
 });
 
+// 🔥 RESTAURATION DES ÉVÉNEMENTS FINAUX COUPEZ DANS TON ANCIEN ENVOI
 client.on('channelDelete', async (channel) => {
     if (!channel.guild) return;
     try {
@@ -681,34 +689,28 @@ async function verifierBioMemBRE(member) {
     }
 }
 
-// 🔥 CORE DE SÉCURITÉ : TEXTE & IMAGES (ANTI QR-CODE SUSPECT)
 async function verifierContenuMessage(message, content) {
     if (!message.guild || message.author?.bot) return false;
 
-    // 🖼️ ANALYSE DES IMAGES (ANTI-QR CODE FRAUDULEUX)
     if (message.attachments.size > 0) {
         for (const attachment of message.attachments.values()) {
             const estImage = /\.(png|jpg|jpeg|webp)$/i.test(attachment.name);
             if (!estImage) continue;
 
             try {
-                // 1. Téléchargement en mémoire buffer via axios
                 const response = await axios.get(attachment.url, { responseType: 'arraybuffer' });
                 const buffer = Buffer.from(response.data);
 
-                // 2. Extraction des pixels bruts avec Sharp
                 const { data, info } = await sharp(buffer)
                     .ensureAlpha()
                     .raw()
                     .toBuffer({ resolveWithObject: true });
 
-                // 3. Analyse de la matrice par jsQR
                 const code = jsQR(new Uint8ClampedArray(data), info.width, info.height);
 
                 if (code && code.data) {
                     const qrText = code.data;
 
-                    // 4. Vérification si le lien caché dans le QR Code est suspect
                     if (regexPhishing.test(qrText) || SCAM_RULES.some(rule => rule.regex.test(qrText))) {
                         await message.delete().catch(() => {});
 
