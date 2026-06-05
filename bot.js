@@ -1,10 +1,11 @@
-const { Client, GatewayIntentBits, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 const { joinVoiceChannel } = require('@discordjs/voice'); 
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
 const fs = require('fs');
 
+// 🤖 INITIALISATION DU CLIENT AVEC INTENTS & PARTIALS (POUR LE MODMAIL)
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds, 
@@ -17,8 +18,13 @@ const client = new Client({
         GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.GuildExpressions,
-        GatewayIntentBits.DirectMessages // 🔥 Indispensable pour détecter les MPs reçus
-    ] 
+        GatewayIntentBits.DirectMessages 
+    ],
+    partials: [
+        Partials.Channel, // Indispensable pour intercepter les salons DM
+        Partials.Message, // Indispensable pour lire les messages non mis en cache
+        Partials.User     // Indispensable pour manipuler les auteurs en MP
+    ]
 });
 
 // Initialisation des structures sur le client pour éviter les crashs en MP
@@ -108,7 +114,7 @@ client.on('ready', async () => {
         }
     } else {
         for (const [guildId, guild] of client.guilds.cache) {
-            totalMessagesParServeur.set(guildId, 4308500);
+            totalMessagesParServeur.set(guildId, 4309762);
         }
     }
     
@@ -137,7 +143,7 @@ client.on('messageCreate', async (message) => {
     const targetGuildId = message.guild ? message.guild.id : GUILD_ID;
 
     if (!totalMessagesParServeur.has(targetGuildId)) {
-        totalMessagesParServeur.set(targetGuildId, 4308500);
+        totalMessagesParServeur.set(targetGuildId, 4309762);
     }
 
     const cumulActuel = totalMessagesParServeur.get(targetGuildId);
@@ -147,7 +153,7 @@ client.on('messageCreate', async (message) => {
     fs.writeFileSync('compteur.json', JSON.stringify(objetASauvegarder, null, 2));
 
     // ==========================================
-    // 📩 BRANCHE : TRAITEMENT DES MESSAGES PRIVÉS
+    // 📩 BRANCHE : TRAITEMENT DES MESSAGES PRIVÉS (MODMAIL)
     // ==========================================
     if (!message.guild) {
         if (message.author.bot) return;
@@ -421,7 +427,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         return await activityLogChannel.send({ embeds: [embedVocal] }).catch(() => {});
     }
     if (oldState.channelId && !newState.channelId) {
-        embedVocal.setColor('#e74c3c').setTitle('🎤 VOCAL : SALON QUITTÉ').setDescription(`• **Membre :** oldState.member\n• **Salon quitté :** ${oldState.channel}`);
+        embedVocal.setColor('#e74c3c').setTitle('🎤 VOCAL : SALON QUITTÉ').setDescription(`• **Membre :** ${oldState.member}\n• **Salon quitté :** ${oldState.channel}`);
         return await activityLogChannel.send({ embeds: [embedVocal] }).catch(() => {});
     }
     if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
