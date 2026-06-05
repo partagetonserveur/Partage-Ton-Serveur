@@ -39,7 +39,7 @@ const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516";
 const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
 
 // 🆕 CONFIGURATION DU SYSTÈME DE SUPPORT EN MP (AIGUILLAGE)
-const GUILD_ID = process.env.GUILD_ID || "78595694050410516"; // ID de ton serveur principal
+const GUILD_ID = process.env.GUILD_ID || "674632850775212033"; // ID de ton serveur principal
 const SUPPORT_CATEGORY_ID = process.env.SUPPORT_CATEGORY_ID || "828174120956461066"; // ID de la catégorie des salons tickets
 
 // 🆕 MAPS DU SYSTÈME DE SUPPORT
