@@ -3,7 +3,7 @@ const { joinVoiceChannel } = require('@discordjs/voice');
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
-const fs = require('fs'); // 🔥 Indispensable pour la sauvegarde du compteur de messages
+const fs = require('fs');
 
 const client = new Client({ 
     intents: [
@@ -132,21 +132,17 @@ client.on('ready', async () => {
     } catch (error) { console.error(error); }
 });
 
-// 🔥 UNIQUE ÉCOUTEUR CENTRALISÉ DU FLUX DE MESSAGES (TOUT EST COMPTÉ SANS EXCEPTION)
+// 🔥 UNIQUE ÉCOUTEUR CENTRALISÉ DU FLUX DE MESSAGES
 client.on('messageCreate', async (message) => {
-    // Aiguillage de l'ID : si c'est un MP/Ticket, on attribue la valeur à ton serveur principal
     const targetGuildId = message.guild ? message.guild.id : GUILD_ID;
 
-    // Initialisation si le conteneur n'existe pas encore pour cette cible
     if (!totalMessagesParServeur.has(targetGuildId)) {
         totalMessagesParServeur.set(targetGuildId, 4308500);
     }
 
-    // Incrémentation (+1 global : humains, bots, serveurs, MPs, salons cachés)
     const cumulActuel = totalMessagesParServeur.get(targetGuildId);
     totalMessagesParServeur.set(targetGuildId, cumulActuel + 1);
 
-    // Sauvegarde physique immédiate sur le stockage local
     const objetASauvegarder = Object.fromEntries(totalMessagesParServeur);
     fs.writeFileSync('compteur.json', JSON.stringify(objetASauvegarder, null, 2));
 
@@ -154,12 +150,10 @@ client.on('messageCreate', async (message) => {
     // 📩 BRANCHE : TRAITEMENT DES MESSAGES PRIVÉS
     // ==========================================
     if (!message.guild) {
-        // Si c'est un bot tiers qui parle en MP à ton bot, on arrête le script de support ici (mais le message a été compté !)
         if (message.author.bot) return;
 
         const userId = message.author.id;
 
-        // Si l'utilisateur possède déjà un ticket actif
         if (ticketsSalons.has(userId)) {
             const guild = client.guilds.cache.get(GUILD_ID);
             if (!guild) return;
@@ -183,7 +177,6 @@ client.on('messageCreate', async (message) => {
 
         if (client.enTrainDeChoisirCategory.get(userId)) return;
 
-        // Mise en mémoire tampon de la demande
         client.messagesTemporairesTickets.set(userId, {
             content: message.content,
             attachments: message.attachments.size > 0 ? Array.from(message.attachments.values()) : []
@@ -216,16 +209,12 @@ client.on('messageCreate', async (message) => {
     // 🛡️ BRANCHE : TRAITEMENT SUR SERVEUR
     // ==========================================
     else {
-        // On n'analyse pas le contenu textuel s'il s'agit d'un bot (évite les boucles de détection)
         if (message.author.bot) return;
-
-        // Appel de ton infrastructure de sécurité
         await verifierContenuMessage(message, message.content);
     }
 });
 
 client.on('interactionCreate', async (interaction) => {
-    // 🆕 INTERCEPTION DU MENU DÉROULANT D'AIGUILLAGE EN MP
     if (interaction.isStringSelectMenu() && interaction.customId === 'select_ticket_category') {
         await interaction.deferUpdate(); 
 
@@ -293,7 +282,6 @@ client.on('interactionCreate', async (interaction) => {
 
     if (!interaction.isChatInputCommand()) return;
 
-    // 🆕 GESTION DE LA COMMANDE /CLOSE
     if (interaction.commandName === 'close') {
         if (interaction.guildId) {
             if (!interaction.member.permissions.has('ManageChannels')) {
@@ -433,7 +421,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         return await activityLogChannel.send({ embeds: [embedVocal] }).catch(() => {});
     }
     if (oldState.channelId && !newState.channelId) {
-        embedVocal.setColor('#e74c3c').setTitle('🎤 VOCAL : SALON QUITTÉ').setDescription(`• **Membre :** ${oldState.member}\n• **Salon quitté :** ${oldState.channel}`);
+        embedVocal.setColor('#e74c3c').setTitle('🎤 VOCAL : SALON QUITTÉ').setDescription(`• **Membre :** oldState.member\n• **Salon quitté :** ${oldState.channel}`);
         return await activityLogChannel.send({ embeds: [embedVocal] }).catch(() => {});
     }
     if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
@@ -687,11 +675,53 @@ async function verifierBioMemBRE(member) {
     }
 }
 
+// 🔥 CORE DE SÉCURITÉ : TEXTE & IMAGES (ANTI QR-CODE SUSPECT)
 async function verifierContenuMessage(message, content) {
-    if (!content || !message.guild) return false;
-    if (message.author?.bot) return false;
-    
-    return true;
+    if (!message.guild || message.author?.bot) return false;
+
+    // 🖼️ ANALYSE DES IMAGES (ANTI-QR CODE FRAUDULEUX)
+    if (message.attachments.size > 0) {
+        for (const attachment of message.attachments.values()) {
+            const estImage = /\.(png|jpg|jpeg|webp)$/i.test(attachment.name);
+            if (!estImage) continue;
+
+            try {
+                // 1. Téléchargement en mémoire buffer via axios
+                const response = await axios.get(attachment.url, { responseType: 'arraybuffer' });
+                const buffer = Buffer.from(response.data);
+
+                // 2. Extraction des pixels bruts avec Sharp
+                const { data, info } = await sharp(buffer)
+                    .ensureAlpha()
+                    .raw()
+                    .toBuffer({ resolveWithObject: true });
+
+                // 3. Analyse de la matrice par jsQR
+                const code = jsQR(new Uint8ClampedArray(data), info.width, info.height);
+
+                if (code && code.data) {
+                    const qrText = code.data;
+
+                    // 4. Vérification si le lien caché dans le QR Code est suspect
+                    if (regexPhishing.test(qrText) || SCAM_RULES.some(rule => rule.regex.test(qrText))) {
+                        await message.delete().catch(() => {});
+
+                        const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+                        if (logChannel) {
+                            await logChannel.send(`🛡️ **[ANTI-QR CODE FRAUDULEUX]** 🛡️\n• **Auteur :** ${message.author}\n• **Salon :** ${message.channel}\n• **Lien masqué détecté :** \`${qrText}\``);
+                        }
+
+                        await envoyerAlerteMP(message.author, message.guild.name, "Envoi d'un QR Code contenant un lien de phishing ou suspect.", "Suppression immédiate du message.");
+                        return true; 
+                    }
+                }
+            } catch (err) {
+                console.error("Erreur lors de l'analyse du QR code :", err.message);
+            }
+        }
+    }
+
+    return false;
 }
 
 client.login(process.env.DISCORD_TOKEN);
