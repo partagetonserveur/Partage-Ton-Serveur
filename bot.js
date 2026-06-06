@@ -1,12 +1,51 @@
-// 🔥 AJOUT DE PermissionFlagsBits DANS L'IMPORTATION POUR FIXER LA CRÉATION DE SALON
-const { Client, GatewayIntentBits, Partials, AuditLogEvent, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, PermissionFlagsBits } = require('discord.js');
+const { 
+    Client, 
+    GatewayIntentBits, 
+    Partials, 
+    AuditLogEvent, 
+    REST, 
+    Routes, 
+    SlashCommandBuilder, 
+    EmbedBuilder, 
+    ActionRowBuilder, 
+    StringSelectMenuBuilder, 
+    StringSelectMenuOptionBuilder, 
+    PermissionFlagsBits 
+} = require('discord.js');
 const { joinVoiceChannel } = require('@discordjs/voice'); 
 const axios = require('axios');
 const sharp = require('sharp');
 const jsQR = require('jsqr');
 const fs = require('fs');
 
-// 🤖 INITIALISATION DU CLIENT AVEC INTENTS & PARTIALS (POUR LE MODMAIL)
+// ==========================================
+// ⚙️ CONFIGURATION ET VARIABLES GLOBALES
+// ==========================================
+const GUILD_ID = process.env.GUILD_ID || "674632850775212033"; 
+const SUPPORT_CATEGORY_ID = process.env.SUPPORT_CATEGORY_ID || "828174120956461066"; 
+const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
+const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
+
+// Mémoires vives globales
+const ticketsMembres = new Map(); 
+const ticketsSalons = new Map();  
+const totalMessagesParServeur = new Map(); 
+
+const historiqueSalons = new Map();
+const tempsArriveeMembres = new Map(); 
+const historiqueReactions = new Map(); 
+const historiqueModifsServeur = new Map(); 
+const historiqueCreationSalons = new Map(); 
+const historiqueBansModo = new Map(); 
+const historiqueSuppressionSalons = new Map(); 
+const historiqueKicksModo = new Map();        
+const historiqueCreationEmojis = new Map(); 
+const historiqueSuppressionEmojis = new Map(); 
+
+// 🧠 TRACKERS POUR L'ANTI-SELFBOT ET LE COPIER-COLLER PARFAIT
+const precisionTracker = new Map(); // Stocke le dernier timestamp d'écriture
+
+// 🤖 INITIALISATION DU CLIENT
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds, 
@@ -22,48 +61,14 @@ const client = new Client({
         GatewayIntentBits.DirectMessages 
     ],
     partials: [
-        Partials.Channel, // Indispensable pour intercepter les salons DM
-        Partials.Message, // Indispensable pour lire les messages non mis en cache
-        Partials.User     // Indispensable pour manipuler les auteurs en MP
+        Partials.Channel, 
+        Partials.Message, 
+        Partials.User     
     ]
 });
 
-// Initialisation des structures sur le client pour éviter les crashs en MP
 client.messagesTemporairesTickets = new Map();
 client.enTrainDeChoisirCategory = new Map();
-
-// 🆔 ID du salon pour les alertes de PROTECTION et d'URGENCE
-const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
-
-// 🆔 ID du salon pour les logs d'ACTIVITÉ classiques
-const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
-
-// 🆕 CONFIGURATION DU SYSTÈME DE SUPPORT EN MP (AIGUILLAGE)
-const GUILD_ID = process.env.GUILD_ID || "674632850775212033"; // ID de ton serveur principal
-const SUPPORT_CATEGORY_ID = process.env.SUPPORT_CATEGORY_ID || "828174120956461066"; // ID de la catégorie des salons tickets
-
-// 🆕 MAPS DU SYSTÈME DE SUPPORT
-const ticketsMembres = new Map(); // Clé: ID Salon Ticket <-> Valeur: ID Membre
-const ticketsSalons = new Map();  // Clé: ID Membre <-> Valeur: ID Salon Ticket
-
-const historiqueSalons = new Map();
-const tempsArriveeMembres = new Map(); 
-const historiqueReactions = new Map(); 
-const historiqueModifsServeur = new Map(); 
-
-const totalMessagesParServeur = new Map(); 
-const serveursEnCoursDeScan = new Set();     
-
-const historiqueCreationSalons = new Map(); 
-const historiqueBansModo = new Map(); 
-const historiqueSuppressionSalons = new Map(); 
-const historiqueKicksModo = new Map();        
-const historiqueCreationEmojis = new Map(); 
-const historiqueSuppressionEmojis = new Map(); 
-
-// 🧠 TRACKERS POUR L'ANTI-SELFBOT ET LE COPIER-COLLER PARFAIT
-const precisionTracker = new Map();
-const tempsFrappeTracker = new Map();
 
 // 📩 FONCTION CENTRALISÉE D'ALERTE EN MESSAGE PRIVÉ
 async function envoyerAlerteMP(user, guildName, raison, sanction) {
@@ -85,6 +90,7 @@ async function envoyerAlerteMP(user, guildName, raison, sanction) {
     }
 }
 
+// Expressions régulières de sécurité
 const SCAM_RULES = [
   { regex: /n[i1]tr[o0]/i, points: 2 },       
   { regex: /fr[e3][e3]/i, points: 2 },        
@@ -93,15 +99,18 @@ const SCAM_RULES = [
 ];
 
 const regexPhishing = /(diiscord|disc0rd|discord-app|discord-gift|dlscord|discordg|free-nitro|nitro-gift|steam-gift|crypto-claim).*\.(com|ru|xyz|org|net|info|gift|click|link|apps)/i;
-const regexMalware = /(https?:\/\/[^\s]+)\.(zip|rar|7z|tar|gz|exe|scr|bat|cmd|vbs|msi)(?=\s|$)/i;
-const sitesHebergementSuspects = /(mediafire|mega\.nz\/file|anonfiles|bayfiles|zippyshare|dropapk|uploadocean)/i;
 const regexLienGeneral = /https?:\/\/[^\s]+/gi;
 const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|media)|discordapp\.com)/i;
 
+// 🔥 REGEX POUR LA DÉTECTION DE SECRETS / TOKENS DISCORD
+const regexTokenDiscord = /[\w-]{24,26}\.[\w-]{6}\.[\w-]{25,110}/;
+
+// ==========================================
+// 🚀 ÉVÉNEMENT : READY
+// ==========================================
 client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
     
-    // 🔥 CHARGEMENT DU COMPTEUR DEPUIS LE FICHIER SÉCURISÉ
     if (fs.existsSync('compteur.json')) {
         try {
             const data = fs.readFileSync('compteur.json', 'utf-8');
@@ -109,9 +118,9 @@ client.on('ready', async () => {
             for (const [guildId, valeur] of Object.entries(sauvegardes)) {
                 totalMessagesParServeur.set(guildId, valeur);
             }
-            console.log("📊 Compteurs de messages chargés avec succès depuis le fichier !");
+            console.log("📊 Compteurs de messages chargés avec succès !");
         } catch (e) {
-            console.error("Impossible de lire le fichier de sauvegarde, initialisation par défaut.", e);
+            console.error("Erreur de lecture compteur.json, réinitialisation.", e);
         }
     } else {
         for (const [guildId, guild] of client.guilds.cache) {
@@ -139,88 +148,9 @@ client.on('ready', async () => {
     } catch (error) { console.error(error); }
 });
 
-// 🔥 UNIQUE ÉCOUTEUR CENTRALISÉ DU FLUX DE MESSAGES
-client.on('messageCreate', async (message) => {
-    const targetGuildId = message.guild ? message.guild.id : GUILD_ID;
-
-    if (!totalMessagesParServeur.has(targetGuildId)) {
-        totalMessagesParServeur.set(targetGuildId, 4309762);
-    }
-
-    const cumulActuel = totalMessagesParServeur.get(targetGuildId);
-    totalMessagesParServeur.set(targetGuildId, cumulActuel + 1);
-
-    const objetASauvegarder = Object.fromEntries(totalMessagesParServeur);
-    fs.writeFileSync('compteur.json', JSON.stringify(objetASauvegarder, null, 2));
-
-    // ==========================================
-    // 📩 BRANCHE : TRAITEMENT DES MESSAGES PRIVÉS (MODMAIL)
-    // ==========================================
-    if (!message.guild) {
-        if (message.author.bot) return;
-
-        const userId = message.author.id;
-
-        if (ticketsSalons.has(userId)) {
-            const guild = client.guilds.cache.get(GUILD_ID);
-            if (!guild) return;
-            
-            const ticketChannel = guild.channels.cache.get(ticketsSalons.get(userId));
-            if (ticketChannel) {
-                const relayEmbed = new EmbedBuilder()
-                    .setColor('#ffa500')
-                    .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-                    .setDescription(message.content || "*[Fichier/Image]*")
-                    .setTimestamp();
-
-                await ticketChannel.send({ embeds: [relayEmbed] });
-                if (message.attachments.size > 0) {
-                    await ticketChannel.send({ files: Array.from(message.attachments.values()) });
-                }
-                await message.react('✅').catch(() => {});
-            }
-            return;
-        }
-
-        if (client.enTrainDeChoisirCategory.get(userId)) return;
-
-        client.messagesTemporairesTickets.set(userId, {
-            content: message.content,
-            attachments: message.attachments.size > 0 ? Array.from(message.attachments.values()) : []
-        });
-
-        client.enTrainDeChoisirCategory.set(userId, true);
-
-        const menu = new StringSelectMenuBuilder()
-            .setCustomId('select_ticket_category')
-            .setPlaceholder('Sélectionnez le motif de votre demande...')
-            .addOptions(
-                new StringSelectMenuOptionBuilder().setLabel('Signaler un joueur / Problème').setValue('Signalement').setDescription('Pour dénoncer un comportement ou un raid.').setEmoji('🛡️'),
-                new StringSelectMenuOptionBuilder().setLabel('Demande de Partenariat').setValue('Partenariat').setDescription('Pour lier nos communautés.').setEmoji('🤝'),
-                new StringSelectMenuOptionBuilder().setLabel('Autre Demande / Questions').setValue('Autre').setDescription('Pour toute autre question générale.').setEmoji('❓')
-            );
-
-        const row = new ActionRowBuilder().addComponents(menu);
-
-        const menuEmbed = new EmbedBuilder()
-            .setColor('#ffa500')
-            .setTitle('🎫 BIENVENUE SUR LE SUPPORT')
-            .setDescription(`Bonjour ${message.author},\n\nPour nous permettre de traiter au mieux votre demande, veuillez sélectionner une **catégorie** ci-dessous :`)
-            .setFooter({ text: 'Votre premier message sera automatiquement transmis dans le ticket.' });
-
-        await message.author.send({ embeds: [menuEmbed], components: [row] }).catch(() => {
-            client.enTrainDeChoisirCategory.delete(userId);
-        });
-    } 
-    // ==========================================
-    // 🛡️ BRANCHE : TRAITEMENT SUR SERVEUR
-    // ==========================================
-    else {
-        if (message.author.bot) return;
-        await verifierContenuMessage(message, message.content);
-    }
-});
-
+// ==========================================
+// 📩 ÉVÉNEMENT : INTERACTION CREATE (MENU TICKETS)
+// ==========================================
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isStringSelectMenu() && interaction.customId === 'select_ticket_category') {
         await interaction.deferUpdate(); 
@@ -233,16 +163,24 @@ client.on('interactionCreate', async (interaction) => {
 
         const infoMessage = client.messagesTemporairesTickets.get(userId) || { content: "*Aucun texte*", attachments: [] };
 
-        // 🔥 FIX INJECTÉ ICI : REMPLACEMENT DE LA CHAINE BRUTE PAR PermissionFlagsBits.ViewChannel
         const ticketChannel = await guild.channels.create({
             name: `🎫-${interaction.user.username}`,
             type: 0,
             parent: SUPPORT_CATEGORY_ID,
-            topic: `Ticket [${categorieChoisie}] pour ${interaction.user.tag}`,
+            topic: `Ticket Modmail | ID Membre: ${userId} | Catégorie: ${categorieChoisie}`, 
             permissionOverwrites: [
                 { 
                     id: guild.roles.everyone.id, 
                     deny: [PermissionFlagsBits.ViewChannel] 
+                },
+                {
+                    id: userId,
+                    allow: [
+                        PermissionFlagsBits.ViewChannel,
+                        PermissionFlagsBits.SendMessages,
+                        PermissionFlagsBits.ReadMessageHistory,
+                        PermissionFlagsBits.AttachFiles
+                    ]
                 }
             ]
         }).catch((err) => {
@@ -336,8 +274,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4309762;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4312077;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -352,10 +289,9 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
                 { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
-                { name: '🛡️ Anti-Nuke', value: '• Anti-Raid Mass Ban, Mass Kick, Salon Multi-Création, Destruction.' },
-                { name: '🛡️ Anti-Scam / Phishing / Bypass', value: '• Filtres intelligents, anti-hyperliens masqués, anti-espacement.' },
-                { name: '🛡️ Anti-QR Code & Extensions', value: '• Détection QR Codes frauduleux et fichiers trompeurs à double extension.' },
-                { name: '🛡️ Anti-Raid Infrastructure Cloud', value: '• Analyse des flags d\'automatisation et blocage des réseaux de bots (VPN/Hosts).' }
+                { name: '🛡️ Anti-Nuke & Anti-Token', value: '• Protection contre la fuite de jetons Discord et le saccage de serveurs.' },
+                { name: '🛡️ Anti-Scam & Anti-Selfbot', value: '• Filtres intelligents et analyse comportementale de la vitesse de frappe.' },
+                { name: '🛡️ Anti-QR Code', value: '• Détection des QR codes frauduleux et phishing.' }
             )
             .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
             .setTimestamp();
@@ -381,49 +317,183 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'meteo') {
         const ville = interaction.options.getString('ville');
         await interaction.deferReply(); 
-
         try {
             const response = await axios.get(`https://wttr.in/${encodeURIComponent(ville)}?format=j1`);
             const data = response.data;
-
             if (!data || !data.current_condition || data.current_condition.length === 0) {
                 return await interaction.editReply({ content: `❌ Impossible de trouver les données météo pour **${ville}**.` });
             }
-
             const condition = data.current_condition[0];
-            const tempC = condition.temp_C;
-            const ressentie = condition.FeelsLikeC;
-            const humidite = condition.humidity;
-            const vent = condition.windspeedKmph;
-            
-            let desc = condition.weatherDesc[0].value;
-            if (desc.toLowerCase() === "sunny") desc = "☀️ Ensoleillé";
-            else if (desc.toLowerCase() === "partly cloudy") desc = "⛅ Partiellement nuageux";
-            else if (desc.toLowerCase() === "cloudy") desc = "☁️ Nuageux";
-            else if (desc.toLowerCase() === "overcast") desc = "☁️ Couvert";
-            else if (desc.toLowerCase().includes("rain")) desc = "🌧️ Pluvieux";
-            else if (desc.toLowerCase().includes("snow")) desc = "❄️ Enneigé";
-
             const meteoEmbed = new EmbedBuilder()
                 .setColor('#ffa500')
                 .setTitle(`🌤️ Météo actuelle à ${ville.toUpperCase()}`)
                 .addFields(
-                    { name: '🌡️ Température', value: `\`${tempC}°C\` (Ressentie : \`${ressentie}°C\`)`, inline: true },
-                    { name: '💧 Humidité', value: `\`${humidite}%\``, inline: true },
-                    { name: '💨 Vent', value: `\`${vent} km/h\``, inline: true },
-                    { name: '📊 Condition', value: desc, inline: false }
+                    { name: '🌡️ Température', value: `\`${condition.temp_C}°C\` (Ressentie : \`${condition.FeelsLikeC}°C\`)`, inline: true },
+                    { name: '💧 Humidité', value: `\`${condition.humidity}%\``, inline: true },
+                    { name: '💨 Vent', value: `\`${condition.windspeedKmph} km/h\``, inline: true }
                 )
                 .setTimestamp();
-
             await interaction.editReply({ embeds: [meteoEmbed] });
-
         } catch (error) {
-            console.error("Erreur API Météo:", error.message);
-            await interaction.editReply({ content: "❌ Une erreur est survenue lors de la récupération de la météo. Vérifie le nom de la ville." });
+            await interaction.editReply({ content: "❌ Une erreur est survenue lors de la récupération de la météo." });
         }
     }
 });
 
+// ==========================================
+// 🔄 ÉVÉNEMENT : MESSAGE CREATE (AVEC ANTI-TOKEN ET ANTI-SELFBOT COMPLET)
+// ==========================================
+client.on('messageCreate', async (message) => {
+    const targetGuildId = message.guild ? message.guild.id : GUILD_ID;
+
+    if (!totalMessagesParServeur.has(targetGuildId)) {
+        totalMessagesParServeur.set(targetGuildId, 4312077);
+    }
+    const cumulActuel = totalMessagesParServeur.get(targetGuildId);
+    totalMessagesParServeur.set(targetGuildId, cumulActuel + 1);
+
+    const objetASauvegarder = Object.fromEntries(totalMessagesParServeur);
+    fs.writeFileSync('compteur.json', JSON.stringify(objetASauvegarder, null, 2));
+
+    // 📩 BRANCHE 1 : MESSAGES PRIVÉS (UTILISATEUR -> SERVEUR)
+    if (!message.guild) {
+        if (message.author.bot) return;
+        const userId = message.author.id;
+
+        if (ticketsSalons.has(userId)) {
+            const guild = client.guilds.cache.get(GUILD_ID);
+            if (!guild) return;
+            const ticketChannel = guild.channels.cache.get(ticketsSalons.get(userId));
+            if (ticketChannel) {
+                const relayEmbed = new EmbedBuilder()
+                    .setColor('#ffa500')
+                    .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+                    .setDescription(message.content || "*[Fichier/Image]*")
+                    .setTimestamp();
+                await ticketChannel.send({ embeds: [relayEmbed] });
+                if (message.attachments.size > 0) {
+                    await ticketChannel.send({ files: Array.from(message.attachments.values()) });
+                }
+                await message.react('✅').catch(() => {});
+            }
+            return;
+        }
+
+        if (client.enTrainDeChoisirCategory.get(userId)) return;
+
+        client.messagesTemporairesTickets.set(userId, {
+            content: message.content,
+            attachments: message.attachments.size > 0 ? Array.from(message.attachments.values()) : []
+        });
+        client.enTrainDeChoisirCategory.set(userId, true);
+
+        const menu = new StringSelectMenuBuilder()
+            .setCustomId('select_ticket_category')
+            .setPlaceholder('Sélectionnez le motif de votre demande...')
+            .addOptions(
+                new StringSelectMenuOptionBuilder().setLabel('Signaler un joueur / Problème').setValue('Signalement').setEmoji('🛡️'),
+                new StringSelectMenuOptionBuilder().setLabel('Demande de Partenariat').setValue('Partenariat').setEmoji('🤝'),
+                new StringSelectMenuOptionBuilder().setLabel('Autre Demande / Questions').setValue('Autre').setEmoji('❓')
+            );
+
+        const row = new ActionRowBuilder().addComponents(menu);
+        const menuEmbed = new EmbedBuilder()
+            .setColor('#ffa500')
+            .setTitle('🎫 BIENVENUE SUR LE SUPPORT')
+            .setDescription(`Bonjour ${message.author},\n\nVeuillez sélectionner une **catégorie** ci-dessous pour joindre notre équipe :`);
+
+        await message.author.send({ embeds: [menuEmbed], components: [row] }).catch(() => {
+            client.enTrainDeChoisirCategory.delete(userId);
+        });
+    } 
+    // 🛡️ BRANCHE 2 : SUR SERVEUR
+    else {
+        if (message.author.bot) return;
+
+        let userId = ticketsMembres.get(message.channel.id);
+
+        // Synchronisation de secours (Reboot)
+        if (!userId && (message.channel.parentId === SUPPORT_CATEGORY_ID || message.channel.name.startsWith('🎫-'))) {
+            const targetOverwrite = message.channel.permissionOverwrites.cache.find(o => o.type === 1 && o.id !== client.user.id);
+            if (targetOverwrite) {
+                userId = targetOverwrite.id;
+                ticketsMembres.set(message.channel.id, userId);
+                ticketsSalons.set(userId, message.channel.id);
+            }
+        }
+
+        // Relais Staff -> Utilisateur (Modmail)
+        if (userId) {
+            const user = await client.users.fetch(userId).catch(() => null);
+            if (user) {
+                const staffEmbed = new EmbedBuilder()
+                    .setColor('#ffa500')
+                    .setAuthor({ name: `Support - ${message.author.username}`, iconURL: message.author.displayAvatarURL() })
+                    .setDescription(message.content || "*[Fichier/Image]*")
+                    .setTimestamp();
+                await user.send({ embeds: [staffEmbed] }).then(() => {
+                    message.react('📩').catch(() => {});
+                }).catch(() => {
+                    message.channel.send("❌ Impossible d'envoyer le message (DMs fermés).");
+                });
+                if (message.attachments.size > 0) {
+                    await user.send({ files: Array.from(message.attachments.values()) }).catch(() => {});
+                }
+            }
+            return; 
+        }
+
+        // ==========================================
+        // 🔥 EXTENSION : COUCHE DE SÉCURITÉ MESSAGE (ANTI-TOKEN & ANTI-SELFBOT COPIER-COLLER)
+        // ==========================================
+        
+        // 1️⃣ ANTI-TOKEN DISCORD
+        if (regexTokenDiscord.test(message.content)) {
+            await message.delete().catch(() => {});
+            const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+            if (logChannel) {
+                await logChannel.send(`🚨 **[ALERTE SECURITE : FUITE DE TOKEN]** 🚨\n• **Auteur :** ${message.author} (\`${message.author.id}\`)\n• **Salon :** ${message.channel}\n• **Action :** Message supprimé d'urgence.`);
+            }
+            await envoyerAlerteMP(message.author, message.guild.name, "Fuite de jeton d'authentification (Token Discord) détectée dans votre message.", "Suppression immédiate pour préserver votre compte.");
+            return;
+        }
+
+        // 2️⃣ ANTI-SELFBOT & ANTI-COPIER-COLLER INHUMAIN
+        const tempsActuel = Date.now();
+        if (precisionTracker.has(message.author.id)) {
+            const dernierTempsMessage = precisionTracker.get(message.author.id);
+            const intervalle = tempsActuel - dernierTempsMessage; 
+            const longueurTexte = message.content.length;
+
+            // Détection de copier-coller comportemental (vitesse algorithmique)
+            if (longueurTexte > 30 && intervalle < 500) {
+                const vitesseInhumaine = (longueurTexte / (intervalle / 1000)).toFixed(0);
+                
+                await message.delete().catch(() => {});
+                const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+                if (logChannel) {
+                    await logChannel.send(`🛡️ **[ANTI-COPIL : COPIER-COLLER DETECTÉ]** 🛡️\n• **Auteur :** ${message.author}\n• **Salon :** ${message.channel}\n• **Détails :** ${longueurTexte} caractères envoyés en \`${intervalle}ms\` (Vitesse : ~${vitesseInhumaine} char/sec).`);
+                }
+                await envoyerAlerteMP(message.author, message.guild.name, "Détection d'un copier-coller massif ou instantané (Comportement de Selfbot/Macro).", "Suppression du message pour spam comportemental.");
+                return;
+            }
+
+            // Anti-Spam flood ultra-rapide (Sécurité complémentaire)
+            if (intervalle < 200) {
+                await message.delete().catch(() => {});
+                return;
+            }
+        }
+        precisionTracker.set(message.author.id, tempsActuel);
+
+        // Lancement de l'analyseur classique (QR codes, Phishing, etc.)
+        await verifierContenuMessage(message, message.content);
+    }
+});
+
+// ==========================================
+// 🛡️ INFRASTRUCTURE DES LOGS ET COMPORTEMENTS
+// ==========================================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const activityLogChannel = newState.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
     if (!activityLogChannel || newState.member.user.bot) return;
@@ -559,7 +629,7 @@ client.on('guildMemberRemove', async (member) => {
         const activityLogChannel = member.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
 
         if (activityLogChannel && !kickLog) {
-            const embedLeave = new EmbedBuilder().setColor('#7f8c8d').setTitle('👥 MEMBRE : A QUITTÉ LE SERVEUR').setDescription(`• **Utilisateur :** ${member.user.tag} (${member.user})`).setTimestamp();
+            const embedLeave = new EmbedBuilder().setColor('#7f8c8d').setTitle('👥 MEMBRE : A QUITTÉ LE SERVEUR').setDescription(`• **Utilisateur :** ${member.user.tag}`).setTimestamp();
             await activityLogChannel.send({ embeds: [embedLeave] }).catch(() => {});
         }
 
@@ -612,7 +682,6 @@ client.on('channelCreate', async (channel) => {
     } catch (err) { console.error(err); }
 });
 
-// 🔥 RESTAURATION DES ÉVÉNEMENTS FINAUX COUPEZ DANS TON ANCIEN ENVOI
 client.on('channelDelete', async (channel) => {
     if (!channel.guild) return;
     try {
@@ -681,7 +750,6 @@ async function verifierBioMemBRE(member) {
         try {
             const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
             await envoyerAlerteMP(member.user, member.guild.name, "Lien malveillant ou publicitaire détecté dans votre bio Discord.", "Expulsion immédiate du serveur (Kick).");
-
             await member.kick("Anti-Bio Malveillante").catch(() => {});
             if (logChannel) await logChannel.send(`🛡️ **[ANTI-BIO MALVEILLANTE]** 🛡️\n• **Utilisateur expulsé :** ${member.user}\n• **Lien :** \`${lien}\``);
             break;
@@ -710,16 +778,13 @@ async function verifierContenuMessage(message, content) {
 
                 if (code && code.data) {
                     const qrText = code.data;
-
                     if (regexPhishing.test(qrText) || SCAM_RULES.some(rule => rule.regex.test(qrText))) {
                         await message.delete().catch(() => {});
-
                         const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
                         if (logChannel) {
-                            await logChannel.send(`🛡️ **[ANTI-QR CODE FRAUDULEUX]** 🛡️\n• **Auteur :** ${message.author}\n• **Salon :** ${message.channel}\n• **Lien masqué détecté :** \`${qrText}\``);
+                            await logChannel.send(`🛡️ **[ANTI-QR CODE FRAUDULEUX]** 🛡️\n• **Auteur :** ${message.author}\n• **Salon :** ${message.channel}\n• **Lien masqué :** \`${qrText}\``);
                         }
-
-                        await envoyerAlerteMP(message.author, message.guild.name, "Envoi d'un QR Code contenant un lien de phishing ou suspect.", "Suppression immédiate du message.");
+                        await envoyerAlerteMP(message.author, message.guild.name, "Envoi d'un QR Code contenant un lien suspect.", "Suppression immédiate du message.");
                         return true; 
                     }
                 }
@@ -728,7 +793,6 @@ async function verifierContenuMessage(message, content) {
             }
         }
     }
-
     return false;
 }
 
