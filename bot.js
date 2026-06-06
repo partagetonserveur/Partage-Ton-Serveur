@@ -291,7 +291,8 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
                 { name: '🛡️ Anti-Nuke & Anti-Token', value: '• Protection contre la fuite de jetons Discord et le saccage de serveurs.' },
                 { name: '🛡️ Anti-Scam & Anti-Selfbot', value: '• Filtres intelligents et analyse comportementale de la vitesse de frappe.' },
-                { name: '🛡️ Anti-QR Code', value: '• Détection des QR codes frauduleux et phishing.' }
+                { name: '🛡️ Anti-QR Code', value: '• Détection des QR codes frauduleux et phishing.' },
+                { name: '🛡️ Anti-Raid Cloud & VPN', value: '• Analyse approfondie des flags d\'automatisation et blocage des réseaux de bots.' }
             )
             .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
             .setTimestamp();
@@ -736,6 +737,90 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
             historiqueModifsServeur.delete(executor.id);
         }
     } catch (err) { console.error(err); }
+});
+
+// ==========================================
+// 🛡️ SÉCURITÉ ENTRÉE : ANTI-BOT STRICT & PROTECTION INFRASTRUCTURE CLOUD
+// ==========================================
+client.on('guildMemberAdd', async (member) => {
+    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
+
+    // ------------------------------------------
+    // PARTIE A : BLOCAGE INTRUSION DE BOTS ÉTRANGERS
+    // ------------------------------------------
+    if (member.user.bot) {
+        try {
+            await new Promise(resolve => setTimeout(resolve, 1500)); 
+            const fetchedLogs = await member.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.BotAdd });
+            const botAddLog = fetchedLogs.entries.first();
+
+            if (!botAddLog) {
+                await member.kick("Anti-Bot : Impossible de vérifier l'inviteur.").catch(() => {});
+                return;
+            }
+
+            const { executor } = botAddLog;
+
+            // Seul le Propriétaire (ownerId) a le droit de faire entrer un bot
+            if (executor.id !== member.guild.ownerId) {
+                await member.ban({ reason: `Anti-Bot : Tentative d'intrusion. Invité par ${executor.username} au lieu du Fonda.` }).catch(() => {});
+                
+                const staffMalveillant = await member.guild.members.fetch(executor.id).catch(() => null);
+                if (staffMalveillant && staffMalveillant.manageable) {
+                    await staffMalveillant.roles.set([]).catch(console.error); // Reset complet des rôles
+                }
+
+                if (logChannel) {
+                    const embedIntrusion = new EmbedBuilder()
+                        .setColor('#ffa500')
+                        .setTitle('🚨 ALERTE SÉCURITÉ : INTRUSION DE BOT BLOQUÉE')
+                        .setDescription(`Un membre du staff ou un utilisateur a tenté d'ajouter un bot de force.`)
+                        .addFields(
+                            { name: '🤖 Bot bloqué', value: `${member.user} (\`${member.user.id}\`)`, inline: true },
+                            { name: '👤 Inviteur', value: `${executor} (\`${executor.id}\`)`, inline: true },
+                            { name: '🛡️ Sanction', value: `\`Bot banni à vie\` + \`Rôles de l'inviteur réinitialisés\``, inline: false }
+                        )
+                        .setTimestamp();
+                    await logChannel.send({ embeds: [embedIntrusion] });
+                }
+            } else {
+                if (logChannel) {
+                    await logChannel.send(`🟢 **[ANTI-BOT]** Le bot ${member.user} a été autorisé (invité par le propriétaire).`);
+                }
+            }
+        } catch (error) {
+            console.error("Erreur dans le module strict Anti-Bot :", error);
+        }
+        return; 
+    }
+
+    // ------------------------------------------
+    // PARTIE B : ANTI-RAID CLOUD & FLAGS AUTOMATISATION (VPN / PROXY / BOTNET)
+    // ------------------------------------------
+    try {
+        const aUnAvatar = member.user.avatar !== null;
+        const compteUltraRecent = (Date.now() - member.user.createdTimestamp) < 24 * 60 * 60 * 1000; // Moins de 24h
+
+        // Détection comportementale des vagues de faux comptes passant par des VPN/Hosts (Pas d'avatar + Nouveau compte)
+        if (compteUltraRecent && !aUnAvatar) {
+            await member.kick("Sécurité Anti-Raid Cloud : Profil suspect (Flags d'automatisation/VPN).").catch(() => {});
+            
+            if (logChannel) {
+                const embedVPN = new EmbedBuilder()
+                    .setColor('#ffa500')
+                    .setTitle('🛡️ ANTI-RAID INFRASTRUCTURE CLOUD')
+                    .setDescription(`Une tentative de connexion automatisée (via Proxy/VPN/Cloud) a été rejetée.`)
+                    .addFields(
+                        { name: '👤 Compte intercepté', value: `${member.user.tag} (\`${member.user.id}\`)`, inline: true },
+                        { name: '⚠️ Motif détecté', value: `\`Flag d'automatisation (No-Avatar + Compte < 24h)\``, inline: true }
+                    )
+                    .setTimestamp();
+                await logChannel.send({ embeds: [embedVPN] });
+            }
+        }
+    } catch (error) {
+        console.error("Erreur dans l'Analyseur de Flags/VPN :", error);
+    }
 });
 
 async function verifierBioMemBRE(member) {
