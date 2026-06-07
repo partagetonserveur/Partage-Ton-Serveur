@@ -332,6 +332,7 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '🌡️ Température', value: `\`${condition.temp_C}°C\` (Ressentie : \`${condition.FeelsLikeC}°C\`)`, inline: true },
                     { name: '💧 Humidité', value: `\`${condition.humidity}%\``, inline: true },
                     { name: '💨 Vent', value: `\`${condition.windspeedKmph} km/h\``, inline: true }
+                    { name: '☁️ Conditions', value: `${emojiMeteo} \`${etatMeteo}\``, inline: false }
                 )
                 .setTimestamp();
             await interaction.editReply({ embeds: [meteoEmbed] });
@@ -501,15 +502,15 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     const embedVocal = new EmbedBuilder().setTimestamp().setFooter({ text: `ID: ${newState.member.id}` });
 
     if (!oldState.channelId && newState.channelId) {
-        embedVocal.setColor('#2ecc71').setTitle('🎤 VOCAL : SALON REJOINT').setDescription(`• **Membre :** ${newState.member}\n• **Salon rejoint :** ${newState.channel}`);
+        embedVocal.setColor('#ffa500').setTitle('🎤 VOCAL : SALON REJOINT').setDescription(`• **Membre :** ${newState.member}\n• **Salon rejoint :** ${newState.channel}`);
         return await activityLogChannel.send({ embeds: [embedVocal] }).catch(() => {});
     }
     if (oldState.channelId && !newState.channelId) {
-        embedVocal.setColor('#e74c3c').setTitle('🎤 VOCAL : SALON QUITTÉ').setDescription(`• **Membre :** ${oldState.member}\n• **Salon quitté :** ${oldState.channel}`);
+        embedVocal.setColor('#ffa500').setTitle('🎤 VOCAL : SALON QUITTÉ').setDescription(`• **Membre :** ${oldState.member}\n• **Salon quitté :** ${oldState.channel}`);
         return await activityLogChannel.send({ embeds: [embedVocal] }).catch(() => {});
     }
     if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-        embedVocal.setColor('#f39c12').setTitle('🎤 VOCAL : CHANGEMENT DE SALON').setDescription(`• **Membre :** ${newState.member}\n• **Ancien Salon :** ${oldState.channel}\n• **Nouveau Salon :** ${newState.channel}`);
+        embedVocal.setColor('#ffa500').setTitle('🎤 VOCAL : CHANGEMENT DE SALON').setDescription(`• **Membre :** ${newState.member}\n• **Ancien Salon :** ${oldState.channel}\n• **Nouveau Salon :** ${newState.channel}`);
         return await activityLogChannel.send({ embeds: [embedVocal] }).catch(() => {});
     }
 });
@@ -520,19 +521,19 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
     const embedModif = new EmbedBuilder().setTimestamp().setFooter({ text: `ID: ${newMember.id}` });
 
     if (oldMember.nickname !== newMember.nickname) {
-        embedModif.setColor('#9b59b6').setTitle('👥 MEMBRE : CHANGEMENT DE PSEUDO').setDescription(`• **Membre :** ${newMember}\n• **Ancien :** \`${oldMember.nickname || oldMember.user.username}\`\n• **Nouveau :** \`${newMember.nickname || newMember.user.username}\``);
+        embedModif.setColor('#ffa500').setTitle('👥 MEMBRE : CHANGEMENT DE PSEUDO').setDescription(`• **Membre :** ${newMember}\n• **Ancien :** \`${oldMember.nickname || oldMember.user.username}\`\n• **Nouveau :** \`${newMember.nickname || newMember.user.username}\``);
         return await activityLogChannel.send({ embeds: [embedModif] }).catch(() => {});
     }
     if (oldMember.roles.cache.size < newMember.roles.cache.size) {
         const roleAjoute = newMember.roles.cache.filter(role => !oldMember.roles.cache.has(role.id)).first();
         if (!roleAjoute) return;
-        embedModif.setColor('#1abc9c').setTitle('🛡️ RÔLE : ACCORDÉ').setDescription(`• **Bénéficiaire :** ${newMember}\n• **Rôle attribué :** ${roleAjoute}`);
+        embedModif.setColor('#ffa500').setTitle('🛡️ RÔLE : ACCORDÉ').setDescription(`• **Bénéficiaire :** ${newMember}\n• **Rôle attribué :** ${roleAjoute}`);
         return await activityLogChannel.send({ embeds: [embedModif] }).catch(() => {});
     }
     if (oldMember.roles.cache.size > newMember.roles.cache.size) {
         const roleRetire = oldMember.roles.cache.filter(role => !newMember.roles.cache.has(role.id)).first();
         if (!roleRetire) return;
-        embedModif.setColor('#d35400').setTitle('🛡️ RÔLE : RETIRÉ').setDescription(`• **Membre concerné :** ${newMember}\n• **Rôle perdu :** ${roleRetire}`);
+        embedModif.setColor('#ffa500').setTitle('🛡️ RÔLE : RETIRÉ').setDescription(`• **Membre concerné :** ${newMember}\n• **Rôle perdu :** ${roleRetire}`);
         return await activityLogChannel.send({ embeds: [embedModif] }).catch(() => {});
     }
 });
@@ -553,9 +554,9 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
         const embedMod = new EmbedBuilder().setTimestamp();
         if (changeTimeout.new) { 
             const dateExpiration = new Date(changeTimeout.new);
-            embedMod.setColor('#e74c3c').setTitle('🚫 MODÉRATION : MEMBRE EXCLU (TIMEOUT)').setDescription(`• **Membre :** ${cible}\n• **Modérateur :** ${executor}\n• **Fin :** <t:${Math.floor(dateExpiration.getTime() / 1000)}:F>`);
+            embedMod.setColor('#ffa500').setTitle('🚫 MODÉRATION : MEMBRE EXCLU (TIMEOUT)').setDescription(`• **Membre :** ${cible}\n• **Modérateur :** ${executor}\n• **Fin :** <t:${Math.floor(dateExpiration.getTime() / 1000)}:F>`);
         } else { 
-            embedMod.setColor('#2ecc71').setTitle('🚫 MODÉRATION : EXCLUSION ANNULÉE').setDescription(`• **Membre libéré :** ${cible}\n• **Modérateur :** ${executor}\n• Le timeout a été retiré.`);
+            embedMod.setColor('#ffa500').setTitle('🚫 MODÉRATION : EXCLUSION ANNULÉE').setDescription(`• **Membre libéré :** ${cible}\n• **Modérateur :** ${executor}\n• Le timeout a été retiré.`);
         }
         return await activityLogChannel.send({ embeds: [embedMod] }).catch(() => {});
     }
