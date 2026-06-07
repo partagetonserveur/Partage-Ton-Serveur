@@ -331,7 +331,7 @@ client.on('interactionCreate', async (interaction) => {
                 .addFields(
                     { name: '🌡️ Température', value: `\`${condition.temp_C}°C\` (Ressentie : \`${condition.FeelsLikeC}°C\`)`, inline: true },
                     { name: '💧 Humidité', value: `\`${condition.humidity}%\``, inline: true },
-                    { name: '💨 Vent', value: `\`${condition.windspeedKmph} km/h\``, inline: true }
+                    { name: '💨 Vent', value: `\`${condition.windspeedKmph} km/h\``, inline: true },
                     { name: '☁️ Conditions', value: `${emojiMeteo} \`${etatMeteo}\``, inline: false }
                 )
                 .setTimestamp();
