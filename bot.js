@@ -274,7 +274,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4312077;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4317510;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -349,7 +349,7 @@ client.on('messageCreate', async (message) => {
     const targetGuildId = message.guild ? message.guild.id : GUILD_ID;
 
     if (!totalMessagesParServeur.has(targetGuildId)) {
-        totalMessagesParServeur.set(targetGuildId, 4312077);
+        totalMessagesParServeur.set(targetGuildId, 4317510);
     }
     const cumulActuel = totalMessagesParServeur.get(targetGuildId);
     totalMessagesParServeur.set(targetGuildId, cumulActuel + 1);
