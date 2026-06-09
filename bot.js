@@ -124,7 +124,7 @@ client.on('ready', async () => {
         }
     } else {
         for (const [guildId, guild] of client.guilds.cache) {
-            totalMessagesParServeur.set(guildId, 4317510);
+            totalMessagesParServeur.set(guildId, 4323800);
         }
     }
     
