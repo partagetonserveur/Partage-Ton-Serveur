@@ -274,7 +274,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4317510;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4323800;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -325,6 +325,8 @@ client.on('interactionCreate', async (interaction) => {
                 return await interaction.editReply({ content: `❌ Impossible de trouver les données météo pour **${ville}**.` });
             }
             const condition = data.current_condition[0];
+            const etatMeteo = condition.lang_fr ? condition.lang_fr[0].value : condition.weatherDesc[0].value;
+            const emojiMeteo = obtenirEmojiMeteo(etatMeteo);
             const meteoEmbed = new EmbedBuilder()
                 .setColor('#ffa500')
                 .setTitle(`🌤️ Météo actuelle à ${ville.toUpperCase()}`)
@@ -349,7 +351,7 @@ client.on('messageCreate', async (message) => {
     const targetGuildId = message.guild ? message.guild.id : GUILD_ID;
 
     if (!totalMessagesParServeur.has(targetGuildId)) {
-        totalMessagesParServeur.set(targetGuildId, 4317510);
+        totalMessagesParServeur.set(targetGuildId, 4323800);
     }
     const cumulActuel = totalMessagesParServeur.get(targetGuildId);
     totalMessagesParServeur.set(targetGuildId, cumulActuel + 1);
