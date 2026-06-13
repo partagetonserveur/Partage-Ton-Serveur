@@ -43,7 +43,7 @@ const historiqueCreationEmojis = new Map();
 const historiqueSuppressionEmojis = new Map(); 
 
 // 🧠 TRACKERS POUR L'ANTI-SELFBOT ET LE COPIER-COLLER PARFAIT
-const precisionTracker = new Map(); // Stocke le dernier timestamp d'écriture
+const precisionTracker = new Map();
 
 // 🤖 INITIALISATION DU CLIENT
 const client = new Client({ 
@@ -90,6 +90,32 @@ async function envoyerAlerteMP(user, guildName, raison, sanction) {
     }
 }
 
+// 🌤️ TRADUCTION MÉTÉO EN FRANÇAIS
+function traduireMeteoEnFrancais(etat) {
+    const e = etat.toLowerCase();
+    if (e.includes('ensoleillé') || e.includes('sunny') || e.includes('clear')) return 'Ensoleillé';
+    if (e.includes('partiellement nuageux') || e.includes('partly cloudy')) return 'Partiellement nuageux';
+    if (e.includes('nuageux') || e.includes('couvert') || e.includes('cloudy') || e.includes('overcast')) return 'Nuageux';
+    if (e.includes('pluie') || e.includes('averse') || e.includes('bruine') || e.includes('rain') || e.includes('drizzle') || e.includes('shower')) return 'Pluvieux';
+    if (e.includes('orage') || e.includes('thunder')) return 'Orageux';
+    if (e.includes('neige') || e.includes('snow')) return 'Neigeux';
+    if (e.includes('brouillard') || e.includes('brume') || e.includes('fog') || e.includes('mist')) return 'Brumeux';
+    return etat;
+}
+
+// 🌤️ EMOJI MÉTÉO
+function obtenirEmojiMeteo(etat) {
+    const e = etat.toLowerCase();
+    if (e.includes('ensoleillé') || e.includes('sunny') || e.includes('clear')) return '☀️';
+    if (e.includes('partiellement nuageux') || e.includes('partly cloudy')) return '⛅';
+    if (e.includes('nuageux') || e.includes('couvert') || e.includes('cloudy') || e.includes('overcast')) return '☁️';
+    if (e.includes('pluie') || e.includes('averse') || e.includes('bruine') || e.includes('rain') || e.includes('drizzle') || e.includes('shower')) return '🌧️';
+    if (e.includes('orage') || e.includes('thunder')) return '⛈️';
+    if (e.includes('neige') || e.includes('snow')) return '🌨️';
+    if (e.includes('brouillard') || e.includes('brume') || e.includes('fog') || e.includes('mist')) return '🌫️';
+    return '🌤️';
+}
+
 // Expressions régulières de sécurité
 const SCAM_RULES = [
   { regex: /n[i1]tr[o0]/i, points: 2 },       
@@ -124,12 +150,12 @@ client.on('ready', async () => {
         }
     } else {
         for (const [guildId, guild] of client.guilds.cache) {
-            totalMessagesParServeur.set(guildId, 4323800);
+            totalMessagesParServeur.set(guildId, 4338125);
         }
     }
     
     const commands = [
-        new SlashCommandBuilder().setName('status').setDescription('Affiche l’état de santé du bot et les statistiques.'),
+        new SlashCommandBuilder().setName('status').setDescription('Affiche l\'état de santé du bot et les statistiques.'),
         new SlashCommandBuilder().setName('join').setDescription('Fait rejoindre le bot dans votre salon vocal actuel.'),
         new SlashCommandBuilder().setName('close').setDescription('Ferme le ticket de support actuel et supprime le salon.'),
         new SlashCommandBuilder()
@@ -235,7 +261,7 @@ client.on('interactionCreate', async (interaction) => {
 
     if (interaction.commandName === 'close') {
         if (interaction.guildId) {
-            if (!interaction.member.permissions.has('ManageChannels')) {
+            if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
                 return await interaction.reply({ content: "❌ Tu n'as pas la permission de fermer ce ticket.", ephemeral: true });
             }
 
@@ -274,7 +300,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4323800;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4338125;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -317,29 +343,42 @@ client.on('interactionCreate', async (interaction) => {
 
     if (interaction.commandName === 'meteo') {
         const ville = interaction.options.getString('ville');
-        await interaction.deferReply(); 
+        await interaction.deferReply();
+
         try {
-            const response = await axios.get(`https://wttr.in/${encodeURIComponent(ville)}?format=j1`);
-            const data = response.data;
-            if (!data || !data.current_condition || data.current_condition.length === 0) {
-                return await interaction.editReply({ content: `❌ Impossible de trouver les données météo pour **${ville}**.` });
+            const reponse = await axios.get(`https://wttr.in/${encodeURIComponent(ville)}?format=j1`, { timeout: 8000 });
+            const donnees = reponse.data;
+
+            if (!donnees || !donnees.current_condition || donnees.current_condition.length === 0) {
+                return await interaction.editReply({ content: `❌ Aucune donnée météo trouvée pour **${ville}**. Vérifiez l'orthographe.` });
             }
-            const condition = data.current_condition[0];
-            const etatMeteo = condition.lang_fr ? condition.lang_fr[0].value : condition.weatherDesc[0].value;
-            const emojiMeteo = obtenirEmojiMeteo(etatMeteo);
+
+            const condition = donnees.current_condition[0];
+            const etatMeteoBrut = condition.lang_fr?.[0]?.value || condition.weatherDesc?.[0]?.value || 'Inconnu';
+            const etatMeteo = traduireMeteoEnFrancais(etatMeteoBrut);
+            const emojiMeteo = obtenirEmojiMeteo(etatMeteoBrut);
+            const temperature = condition.temp_C;
+            const ressentie = condition.FeelsLikeC;
+            const humidite = condition.humidity;
+            const vent = condition.windspeedKmph;
+
             const meteoEmbed = new EmbedBuilder()
                 .setColor('#ffa500')
                 .setTitle(`🌤️ Météo actuelle à ${ville.toUpperCase()}`)
                 .addFields(
-                    { name: '🌡️ Température', value: `\`${condition.temp_C}°C\` (Ressentie : \`${condition.FeelsLikeC}°C\`)`, inline: true },
-                    { name: '💧 Humidité', value: `\`${condition.humidity}%\``, inline: true },
-                    { name: '💨 Vent', value: `\`${condition.windspeedKmph} km/h\``, inline: true },
+                    { name: '🌡️ Température', value: `\`${temperature}°C\` (Ressentie : \`${ressentie}°C\`)`, inline: true },
+                    { name: '💧 Humidité', value: `\`${humidite}%\``, inline: true },
+                    { name: '💨 Vent', value: `\`${vent} km/h\``, inline: true },
                     { name: '☁️ Conditions', value: `${emojiMeteo} \`${etatMeteo}\``, inline: false }
                 )
+                .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
                 .setTimestamp();
+
             await interaction.editReply({ embeds: [meteoEmbed] });
-        } catch (error) {
-            await interaction.editReply({ content: "❌ Une erreur est survenue lors de la récupération de la météo." });
+
+        } catch (erreur) {
+            console.error('Erreur météo :', erreur.message);
+            await interaction.editReply({ content: "❌ Impossible de récupérer la météo. L'API est peut-être indisponible. Réessayez plus tard." });
         }
     }
 });
@@ -351,13 +390,13 @@ client.on('messageCreate', async (message) => {
     const targetGuildId = message.guild ? message.guild.id : GUILD_ID;
 
     if (!totalMessagesParServeur.has(targetGuildId)) {
-        totalMessagesParServeur.set(targetGuildId, 4323800);
+        totalMessagesParServeur.set(targetGuildId, 4338125);
     }
     const cumulActuel = totalMessagesParServeur.get(targetGuildId);
     totalMessagesParServeur.set(targetGuildId, cumulActuel + 1);
 
     const objetASauvegarder = Object.fromEntries(totalMessagesParServeur);
-    fs.writeFileSync('compteur.json', JSON.stringify(objetASauvegarder, null, 2));
+    fs.promises.writeFile('compteur.json', JSON.stringify(objetASauvegarder, null, 2)).catch(() => {});
 
     // 📩 BRANCHE 1 : MESSAGES PRIVÉS (UTILISATEUR -> SERVEUR)
     if (!message.guild) {
@@ -485,6 +524,7 @@ client.on('messageCreate', async (message) => {
             // Anti-Spam flood ultra-rapide (Sécurité complémentaire)
             if (intervalle < 200) {
                 await message.delete().catch(() => {});
+                await envoyerAlerteMP(message.author, message.guild.name, "Flood détecté (messages envoyés trop rapidement).", "Suppression du message.").catch(() => {});
                 return;
             }
         }
@@ -575,6 +615,7 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
             await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : FLOOD EMOJIS]** 🚨🚨\n• **Auteur :** ${executor}\n• **Contre-mesure :** Émoji supprimé + Rôles retirés.`);
             historiqueCreationEmojis.delete(executor.id);
+            await envoyerAlerteMP(executor, guild.name, "Création massive d'emojis détectée (Tentative de Nuke).", "Émojis supprimés + Rôles réinitialisés.").catch(() => {});
         }
     }
 
@@ -588,6 +629,7 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
             await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : DESTRUCTION EMOJIS]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles supprimés immédiatement.`);
             historiqueSuppressionEmojis.delete(executor.id);
+            await envoyerAlerteMP(executor, guild.name, "Suppression massive d'emojis détectée (Tentative de Nuke).", "Rôles réinitialisés.").catch(() => {});
         }
     }
 });
@@ -619,6 +661,7 @@ client.on('guildBanAdd', async (ban) => {
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error); 
             if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : BAN]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles supprimés.`);
             historiqueBansModo.delete(executor.id);
+            await envoyerAlerteMP(executor, ban.guild.name, "Bannissement massif de membres détecté (Tentative de Nuke).", "Rôles réinitialisés.").catch(() => {});
         }
     } catch (err) { console.error(err); }
 });
@@ -656,6 +699,7 @@ client.on('guildMemberRemove', async (member) => {
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
             if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : KICK]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles supprimés.`);
             historiqueKicksModo.delete(executor.id);
+            await envoyerAlerteMP(executor, member.guild.name, "Expulsion massive de membres détectée (Tentative de Nuke).", "Rôles réinitialisés.").catch(() => {});
         }
     } catch (err) { console.error(err); }
 });
@@ -682,6 +726,7 @@ client.on('channelCreate', async (channel) => {
             const logChannel = channel.guild.channels.cache.get(LOG_CHANNEL_ID);
             if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : FLOOD CREATION]** 🚨🚨\n• **Auteur :** ${executor}\n• **Contre-mesure :** Rôles retirés.`);
             historiqueCreationSalons.delete(executor.id);
+            await envoyerAlerteMP(executor, channel.guild.name, "Création massive de salons détectée (Tentative de Nuke).", "Salons supprimés + Rôles réinitialisés.").catch(() => {});
         }
     } catch (err) { console.error(err); }
 });
@@ -707,6 +752,7 @@ client.on('channelDelete', async (channel) => {
             const logChannel = channel.guild.channels.cache.get(LOG_CHANNEL_ID);
             if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : DESTRUCTION SALONS]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles retirés.`);
             historiqueSuppressionSalons.delete(executor.id);
+            await envoyerAlerteMP(executor, channel.guild.name, "Suppression massive de salons détectée (Tentative de Nuke).", "Rôles réinitialisés.").catch(() => {});
         }
     } catch (err) { console.error(err); }
 });
@@ -738,6 +784,7 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
             if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE VANDALISME]** 🚨🚨\n• **Auteur :** ${executor}\n• **Action :** Rôles supprimés.`);
             historiqueModifsServeur.delete(executor.id);
+            await envoyerAlerteMP(executor, newGuild.name, "Modifications répétées du serveur détectées (Tentative de vandalisme).", "Modifications annulées + Rôles réinitialisés.").catch(() => {});
         }
     } catch (err) { console.error(err); }
 });
@@ -770,7 +817,7 @@ client.on('guildMemberAdd', async (member) => {
                 
                 const staffMalveillant = await member.guild.members.fetch(executor.id).catch(() => null);
                 if (staffMalveillant && staffMalveillant.manageable) {
-                    await staffMalveillant.roles.set([]).catch(console.error); // Reset complet des rôles
+                    await staffMalveillant.roles.set([]).catch(console.error);
                 }
 
                 if (logChannel) {
@@ -786,6 +833,7 @@ client.on('guildMemberAdd', async (member) => {
                         .setTimestamp();
                     await logChannel.send({ embeds: [embedIntrusion] });
                 }
+                await envoyerAlerteMP(executor, member.guild.name, "Tentative d'ajout non autorisé d'un bot sur le serveur.", "Bot banni + Vos rôles ont été réinitialisés.").catch(() => {});
             } else {
                 if (logChannel) {
                     await logChannel.send(`🟢 **[ANTI-BOT]** Le bot ${member.user} a été autorisé (invité par le propriétaire).`);
@@ -802,9 +850,8 @@ client.on('guildMemberAdd', async (member) => {
     // ------------------------------------------
     try {
         const aUnAvatar = member.user.avatar !== null;
-        const compteUltraRecent = (Date.now() - member.user.createdTimestamp) < 24 * 60 * 60 * 1000; // Moins de 24h
+        const compteUltraRecent = (Date.now() - member.user.createdTimestamp) < 24 * 60 * 60 * 1000;
 
-        // Détection comportementale des vagues de faux comptes passant par des VPN/Hosts (Pas d'avatar + Nouveau compte)
         if (compteUltraRecent && !aUnAvatar) {
             await member.kick("Sécurité Anti-Raid Cloud : Profil suspect (Flags d'automatisation/VPN).").catch(() => {});
             
@@ -820,6 +867,7 @@ client.on('guildMemberAdd', async (member) => {
                     .setTimestamp();
                 await logChannel.send({ embeds: [embedVPN] });
             }
+            await envoyerAlerteMP(member.user, member.guild.name, "Votre compte a été détecté comme suspect (Profil sans avatar + Compte créé il y a moins de 24h).", "Expulsion du serveur.").catch(() => {});
         }
     } catch (error) {
         console.error("Erreur dans l'Analyseur de Flags/VPN :", error);
