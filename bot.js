@@ -100,7 +100,7 @@ const client = new Client({
         GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildPresences, GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildExpressions, GatewayIntentBits.DirectMessages 
+        GatewayIntentBits.GuildEmojisAndStickers, GatewayIntentBits.DirectMessages 
     ],
     partials: [Partials.Channel, Partials.Message, Partials.User]
 });
