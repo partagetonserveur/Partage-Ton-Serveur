@@ -130,7 +130,7 @@ async function envoyerAlerteMP(user, guildName, raison, sanction) {
 // 🧠 FONCTION ANTI-TOXICITÉ GEMINI
 async function verifierToxiciteGemini(texte, auteur, salon) { 
     try { 
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); 
         const prompt = `Analyse ce message Discord en français. Le serveur est un serveur de PUBLICITÉ, donc les liens, invitations et promotions de serveurs/chaînes/réseaux sont AUTORISÉS. Réponds UNIQUEMENT par un objet JSON valide, sans aucun texte autour, sans markdown.\n\nMessage : "${texte}"\nAuteur : "${auteur}"\nSalon : "${salon}"\n\nFormat exact attendu :\n{"estToxique":true,"categorie":"insulte","raison":"explication courte","gravite":1}\n\nCatégories à détecter :\n- "insulte" : insultes directes ou déguisées\n- "menace" : menaces physiques, hacking, dox, chantage\n- "haine" : racisme, homophobie, sexisme, discrimination\n- "harcelement" : s'en prendre personnellement à quelqu'un\n- "sexuel" : contenu à caractère sexuel non désiré\n- "dox" : partage d'informations personnelles\n- "arnaque" : vente de nitro, vente de comptes, liens de phishing, demandes d'argent suspectes, crypto douteuse\n- "usurpation" : se faire passer pour un membre du staff ou le fondateur\n- "suicide" : contenu évoquant le suicide ou l'automutilation\n- "violence" : descriptions extrêmement violentes ou gore\n- "aucune" : message normal\n\nGravité :\n- 1 = avertissement\n- 2 = suppression du message\n- 3 = sanction lourde\n\nRÈGLES IMPORTANTES :\n- Les liens d'invitation Discord, pubs YouTube/Twitch/Instagram sont NORMAUX et AUTORISÉS\n- La promotion de serveurs et chaînes est AUTORISÉE\n- BLOQUER : vente de nitro, vente de comptes, "nitro pas cher", "j'achète/vends des comptes"\n- BLOQUER : liens suspects type phishing, "clique pour nitro gratuit"\n- BLOQUER : demandes d'argent, crypto douteuse, "investissement" suspect\n- estToxique=true UNIQUEMENT pour les catégories ci-dessus`; 
         const result = await model.generateContent(prompt); 
         const response = result.response.text(); 
@@ -145,7 +145,7 @@ async function verifierToxiciteGemini(texte, auteur, salon) {
 // 🔞 FONCTION ANTI-NSFW IMAGES
 async function verifierImageNSFW(urlImage) { 
     try { 
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); 
         const prompt = `Analyse cette image. Contient-elle du contenu NSFW (nudité, pornographie, contenu sexuel explicite) ?\nRéponds UNIQUEMENT par un objet JSON valide, sans markdown :\n{"estNSFW":true,"raison":"explication courte"}\nou\n{"estNSFW":false,"raison":""}\n\nRègles :\n- estNSFW=true si nudité, pornographie, contenu sexuel explicite\n- estNSFW=false si image normale, même avec personnes en maillot ou tenues légères\n- Sois strict sur le contenu pornographique uniquement`; 
         const imageResponse = await axios.get(urlImage, { responseType: 'arraybuffer' }); 
         const base64Image = Buffer.from(imageResponse.data).toString('base64'); 
@@ -165,7 +165,7 @@ async function verifierImageNSFW(urlImage) {
 // 🔞 FONCTION ANTI-NSFW SERVEUR
 async function verifierServeurNSFW(guild) { 
     try { 
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); 
         const logChannel = guild.channels.cache.get(LOG_CHANNEL_ID); 
         if (!logChannel) return false; 
         if (guild.iconURL()) { 
