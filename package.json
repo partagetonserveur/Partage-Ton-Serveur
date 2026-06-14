@@ -9,9 +9,8 @@
   "dependencies": {
     "discord.js": "14.14.1",
     "@discordjs/voice": "0.17.0",
-    "@google/generative-ai": "^0.21.0",
+    "@google/generative-ai": "0.21.0",
     "axios": "^1.7.9",
-    "discord.js": "^14.14.1",
     "jsqr": "^1.4.0",
     "sharp": "^0.32.6",
     "natural": "^8.0.1"
