@@ -26,6 +26,7 @@ const GUILD_ID = process.env.GUILD_ID || "674632850775212033";
 const SUPPORT_CATEGORY_ID = process.env.SUPPORT_CATEGORY_ID || "828174120956461066"; 
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516"; 
 const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
+const RAPPORT_CHANNEL_ID = process.env.RAPPORT_CHANNEL_ID || "1516443375774208171";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyDs6VkzkX_Eb-GCkbxLxs18UiRSNXCoa-g";
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -48,6 +49,17 @@ const historiqueSuppressionEmojis = new Map();
 
 const precisionTracker = new Map();
 const dernierCheckToxicite = new Map();
+
+// 📊 STATS RAPPORT QUOTIDIEN
+let statsDuJour = {
+    messagesScannes: 0,
+    toxicite: 0,
+    nsfw: 0,
+    majuscules: 0,
+    tokens: 0,
+    selfbot: 0,
+    nuke: 0
+};
 
 // 🏆 SYSTÈME DE RÉPUTATION
 const reputationPath = './reputation.json';
@@ -249,6 +261,7 @@ client.on('ready', async () => {
     console.log(`🔞 Anti-NSFW Serveur : ACTIVÉ`);
     console.log(`🔤 Anti-Majuscules : ACTIVÉ`);
     console.log(`🏆 Système de Réputation : ACTIVÉ`);
+    console.log(`📊 Rapport Quotidien : ACTIVÉ`);
     
     if (fs.existsSync('compteur.json')) {
         try {
@@ -293,12 +306,20 @@ client.on('ready', async () => {
         console.log('✅ Les Slash Commands ont été enregistrées avec succès !');
     } catch (error) { console.error(error); }
 
-    // 🔞 Vérification NSFW du serveur au démarrage
-    const guild = client.guilds.cache.get(GUILD_ID);
-    if (guild) {
-        verifierServeurNSFW(guild);
-        console.log("🔞 Vérification NSFW du serveur effectuée au démarrage.");
-    }
+    // 🔞 Vérification NSFW du serveur après 30 secondes
+    setTimeout(() => {
+        const guild = client.guilds.cache.get(GUILD_ID);
+        if (guild) {
+            verifierServeurNSFW(guild);
+            console.log("🔞 Vérification NSFW du serveur effectuée.");
+        }
+    }, 30000);
+
+    // 🔞 Puis toutes les heures
+    setInterval(() => {
+        const guild = client.guilds.cache.get(GUILD_ID);
+        if (guild) verifierServeurNSFW(guild);
+    }, 3600000);
 
     // 🏆 Bonus journalier de réputation
     setInterval(() => {
@@ -333,6 +354,44 @@ client.on('ready', async () => {
         });
         console.log("⭐ Rôles de confiance mis à jour !");
     }, 604800000);
+
+    // 📊 RAPPORT QUOTIDIEN (tous les jours à minuit)
+    setInterval(() => {
+        const now = new Date();
+        if (now.getHours() === 0 && now.getMinutes() === 0) {
+            const rapportChannel = client.channels.cache.get(RAPPORT_CHANNEL_ID);
+            if (rapportChannel) {
+                const topFiable = Object.entries(reputationData).sort((a, b) => b[1].score - a[1].score).slice(0, 3);
+                const topDangereux = Object.entries(reputationData).sort((a, b) => a[1].score - b[1].score).slice(0, 3);
+                const ts = Math.floor(client.uptime / 1000);
+                const j = Math.floor(ts / 86400);
+                const h = Math.floor((ts % 86400) / 3600);
+                const m = Math.floor((ts % 3600) / 60);
+                
+                const rapport = new EmbedBuilder()
+                    .setColor('#ffa500')
+                    .setTitle(`📊 RAPPORT QUOTIDIEN - ${now.toLocaleDateString('fr-FR')}`)
+                    .setDescription('━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+                    .addFields(
+                        { name: '📊 ACTIVITÉ DU JOUR', value: '━━━━━━━━━━━━━━━━━━━━━━━━━━━', inline: false },
+                        { name: '📨 Messages scannés', value: `\`${statsDuJour.messagesScannes}\``, inline: true },
+                        { name: '🧠 Toxicité bloquée', value: `\`${statsDuJour.toxicite}\``, inline: true },
+                        { name: '🔞 NSFW bloqué', value: `\`${statsDuJour.nsfw}\``, inline: true },
+                        { name: '🔤 Majuscules', value: `\`${statsDuJour.majuscules}\``, inline: true },
+                        { name: '🔐 Tokens', value: `\`${statsDuJour.tokens}\``, inline: true },
+                        { name: '🤖 Selfbot', value: `\`${statsDuJour.selfbot}\``, inline: true },
+                        { name: '☢️ Tentatives Nuke', value: `\`${statsDuJour.nuke}\``, inline: true },
+                        { name: '🏆 TOP 3 FIABLES', value: topFiable.map(([id, d]) => `🥇 ${d.username || id} : \`${d.score}\` pts`).join('\n') || 'Aucun', inline: false },
+                        { name: '⛔ TOP 3 DANGEREUX', value: topDangereux.map(([id, d]) => `⚠️ ${d.username || id} : \`${d.score}\` pts`).join('\n') || 'Aucun', inline: false }
+                    )
+                    .setFooter({ text: `🛡️ Protection active depuis ${j}j ${h}h ${m}m` })
+                    .setTimestamp();
+                
+                rapportChannel.send({ embeds: [rapport] });
+                statsDuJour = { messagesScannes: 0, toxicite: 0, nsfw: 0, majuscules: 0, tokens: 0, selfbot: 0, nuke: 0 };
+            }
+        }
+    }, 60000);
 });
 
 // ==========================================
@@ -490,6 +549,7 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '🔞 Anti-NSFW Serveur', value: '• Vérification de l\'icône et bannière du serveur.' },
                 { name: '🔤 Anti-Majuscules', value: '• Suppression des messages en majuscules abusives.' },
                 { name: '🏆 Système de Réputation', value: '• Score automatique selon comportement.\n• Sanctions auto si score négatif.' },
+                { name: '📊 Rapport Quotidien', value: '• Résumé chaque jour à minuit.' },
                 { name: '🛡️ Anti-Nuke & Anti-Token', value: '• Protection contre la fuite de jetons Discord et le saccage.' },
                 { name: '🛡️ Anti-Scam & Anti-Selfbot', value: '• Filtres intelligents et analyse comportementale.' },
                 { name: '🛡️ Anti-QR Code', value: '• Détection des QR codes frauduleux et phishing.' },
@@ -569,6 +629,7 @@ client.on('messageCreate', async (message) => {
     }
     const cumulActuel = totalMessagesParServeur.get(targetGuildId);
     totalMessagesParServeur.set(targetGuildId, cumulActuel + 1);
+    statsDuJour.messagesScannes++;
 
     const objetASauvegarder = Object.fromEntries(totalMessagesParServeur);
     fs.promises.writeFile('compteur.json', JSON.stringify(objetASauvegarder, null, 2)).catch(() => {});
@@ -710,6 +771,7 @@ client.on('messageCreate', async (message) => {
                 if (estImage) {
                     const analyseNSFW = await verifierImageNSFW(attachment.url);
                     if (analyseNSFW.estNSFW) {
+                        statsDuJour.nsfw++;
                         await message.delete().catch(() => {});
                         addReputation(message.author.id, -10, 'Image NSFW', message.author.username);
                         const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
@@ -730,6 +792,7 @@ client.on('messageCreate', async (message) => {
                 const majuscules = lettres.replace(/[^A-Z]/g, '').length;
                 const pourcentage = (majuscules / lettres.length) * 100;
                 if (pourcentage > 70) {
+                    statsDuJour.majuscules++;
                     await message.delete().catch(() => {});
                     addReputation(message.author.id, -2, 'Majuscules abusives', message.author.username);
                     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
@@ -742,14 +805,15 @@ client.on('messageCreate', async (message) => {
             }
         }
 
-        // 2️⃣ ANTI-TOXICITÉ GEMINI
+        // 2️⃣ ANTI-TOXICITÉ GEMINI (1 check / 15 secondes)
         if (message.content.length > 3) {
             const dernierCheck = dernierCheckToxicite.get(message.author.id) || 0;
-            if (Date.now() - dernierCheck > 3000) {
+            if (Date.now() - dernierCheck > 15000) {
                 dernierCheckToxicite.set(message.author.id, Date.now());
                 
                 const analyseToxicite = await verifierToxiciteGemini(message.content, message.author.username, message.channel.name);
                 if (analyseToxicite.estToxique) {
+                    statsDuJour.toxicite++;
                     await message.delete().catch(() => {});
                     
                     let pointsRetires = 0;
@@ -787,6 +851,7 @@ client.on('messageCreate', async (message) => {
 
         // 3️⃣ ANTI-TOKEN DISCORD
         if (regexTokenDiscord.test(message.content)) {
+            statsDuJour.tokens++;
             await message.delete().catch(() => {});
             addReputation(message.author.id, -10, 'Fuite de token', message.author.username);
             const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
@@ -805,6 +870,7 @@ client.on('messageCreate', async (message) => {
             const longueurTexte = message.content.length;
 
             if (longueurTexte > 30 && intervalle < 500) {
+                statsDuJour.selfbot++;
                 const vitesseInhumaine = (longueurTexte / (intervalle / 1000)).toFixed(0);
                 
                 await message.delete().catch(() => {});
@@ -908,6 +974,7 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
             if (emojiCible) await emojiCible.delete().catch(() => {});
             const memberStaff = await guild.members.fetch(executor.id).catch(() => null);
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
+            statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (flood emojis)', executor.username);
             await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : FLOOD EMOJIS]** 🚨🚨\n• **Auteur :** ${executor}\n• **Contre-mesure :** Émoji supprimé + Rôles retirés.\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueCreationEmojis.delete(executor.id);
@@ -923,6 +990,7 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
         if (suppressions.length > 2 && logChannel) {
             const memberStaff = await guild.members.fetch(executor.id).catch(() => null);
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
+            statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (destruction emojis)', executor.username);
             await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : DESTRUCTION EMOJIS]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles supprimés immédiatement.\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueSuppressionEmojis.delete(executor.id);
@@ -956,6 +1024,7 @@ client.on('guildBanAdd', async (ban) => {
         if (bansRecentes.length > 2) {
             const memberStaff = await ban.guild.members.fetch(executor.id).catch(() => null);
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error); 
+            statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (bans massifs)', executor.username);
             if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : BAN]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles supprimés.\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueBansModo.delete(executor.id);
@@ -995,6 +1064,7 @@ client.on('guildMemberRemove', async (member) => {
         if (kicksRecents.length > 2) {
             const memberStaff = await member.guild.members.fetch(executor.id).catch(() => null);
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
+            statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (kicks massifs)', executor.username);
             if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : KICK]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles supprimés.\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueKicksModo.delete(executor.id);
@@ -1022,6 +1092,7 @@ client.on('channelCreate', async (channel) => {
             await channel.delete().catch(() => {});
             const memberStaff = await channel.guild.members.fetch(executor.id).catch(() => null);
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
+            statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (flood salons)', executor.username);
             const logChannel = channel.guild.channels.cache.get(LOG_CHANNEL_ID);
             if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : FLOOD CREATION]** 🚨🚨\n• **Auteur :** ${executor}\n• **Contre-mesure :** Rôles retirés.\n• **Score :** ${getReputation(executor.id).score}`);
@@ -1049,6 +1120,7 @@ client.on('channelDelete', async (channel) => {
         if (suppressionsRecentes.length > 2) {
             const memberStaff = await channel.guild.members.fetch(executor.id).catch(() => null);
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
+            statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (destruction salons)', executor.username);
             const logChannel = channel.guild.channels.cache.get(LOG_CHANNEL_ID);
             if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : DESTRUCTION SALONS]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles retirés.\n• **Score :** ${getReputation(executor.id).score}`);
@@ -1086,6 +1158,7 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
             await newGuild.edit({ name: oldGuild.name, icon: oldGuild.iconURL({ dynamic: true }) || null, banner: oldGuild.bannerURL() || null }).catch(console.error);
             const memberStaff = await newGuild.members.fetch(executor.id).catch(() => null);
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
+            statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de vandalisme (modifications serveur)', executor.username);
             if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE VANDALISME]** 🚨🚨\n• **Auteur :** ${executor}\n• **Action :** Rôles supprimés.\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueModifsServeur.delete(executor.id);
