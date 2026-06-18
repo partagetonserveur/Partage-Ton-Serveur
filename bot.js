@@ -258,7 +258,7 @@ client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
     console.log(`🧠 Anti-Toxicité Gemini : ACTIVÉ`);
     console.log(`🔞 Anti-NSFW Messages : ACTIVÉ`);
-    console.log(`🔞 Anti-NSFW Serveur : ACTIVÉ`);
+    console.log(`🔞 Anti-NSFW Serveur : DÉSACTIVÉ (quota)`);
     console.log(`🔤 Anti-Majuscules : ACTIVÉ`);
     console.log(`🏆 Système de Réputation : ACTIVÉ`);
     console.log(`📊 Rapport Quotidien : ACTIVÉ`);
@@ -276,7 +276,7 @@ client.on('ready', async () => {
         }
     } else {
         for (const [guildId] of client.guilds.cache) {
-            totalMessagesParServeur.set(guildId, 4340960);
+            totalMessagesParServeur.set(guildId, 4359835);
         }
     }
     
@@ -306,20 +306,15 @@ client.on('ready', async () => {
         console.log('✅ Les Slash Commands ont été enregistrées avec succès !');
     } catch (error) { console.error(error); }
 
-    // 🔞 Vérification NSFW du serveur après 30 secondes
-    setTimeout(() => {
-        const guild = client.guilds.cache.get(GUILD_ID);
-        if (guild) {
-            verifierServeurNSFW(guild);
-            console.log("🔞 Vérification NSFW du serveur effectuée.");
-        }
-    }, 30000);
-
-    // 🔞 Puis toutes les heures
-    setInterval(() => {
-        const guild = client.guilds.cache.get(GUILD_ID);
-        if (guild) verifierServeurNSFW(guild);
-    }, 3600000);
+    // 🔞 Vérification NSFW du serveur DÉSACTIVÉE TEMPORAIREMENT (quota)
+    // setTimeout(() => {
+    //     const guild = client.guilds.cache.get(GUILD_ID);
+    //     if (guild) verifierServeurNSFW(guild);
+    // }, 30000);
+    // setInterval(() => {
+    //     const guild = client.guilds.cache.get(GUILD_ID);
+    //     if (guild) verifierServeurNSFW(guild);
+    // }, 3600000);
 
     // 🏆 Bonus journalier de réputation
     setInterval(() => {
@@ -333,7 +328,6 @@ client.on('ready', async () => {
                 }
             }
         });
-        console.log("🏆 Bonus journalier de réputation distribué !");
     }, 86400000);
 
     // ⭐ Rôle Fiable automatique (toutes les semaines)
@@ -342,7 +336,6 @@ client.on('ready', async () => {
         if (!guild) return;
         const roleFiable = guild.roles.cache.find(r => r.name === '⭐ Membre de Confiance');
         if (!roleFiable) return;
-        
         guild.members.cache.forEach(member => {
             const rep = getReputation(member.user.id);
             if (rep.score >= 20 && !member.roles.cache.has(roleFiable.id)) {
@@ -352,7 +345,6 @@ client.on('ready', async () => {
                 member.roles.remove(roleFiable).catch(() => {});
             }
         });
-        console.log("⭐ Rôles de confiance mis à jour !");
     }, 604800000);
 
     // 📊 RAPPORT QUOTIDIEN (tous les jours à minuit)
@@ -371,18 +363,16 @@ client.on('ready', async () => {
                 const rapport = new EmbedBuilder()
                     .setColor('#ffa500')
                     .setTitle(`📊 RAPPORT QUOTIDIEN - ${now.toLocaleDateString('fr-FR')}`)
-                    .setDescription('━━━━━━━━━━━━━━━━━━━━━━━━━━━')
                     .addFields(
-                        { name: '📊 ACTIVITÉ DU JOUR', value: '━━━━━━━━━━━━━━━━━━━━━━━━━━━', inline: false },
                         { name: '📨 Messages scannés', value: `\`${statsDuJour.messagesScannes}\``, inline: true },
-                        { name: '🧠 Toxicité bloquée', value: `\`${statsDuJour.toxicite}\``, inline: true },
-                        { name: '🔞 NSFW bloqué', value: `\`${statsDuJour.nsfw}\``, inline: true },
-                        { name: '🔤 Majuscules', value: `\`${statsDuJour.majuscules}\``, inline: true },
+                        { name: '🧠 Toxicité', value: `\`${statsDuJour.toxicite}\``, inline: true },
+                        { name: '🔞 NSFW', value: `\`${statsDuJour.nsfw}\``, inline: true },
+                        { name: '🔤 Maj', value: `\`${statsDuJour.majuscules}\``, inline: true },
                         { name: '🔐 Tokens', value: `\`${statsDuJour.tokens}\``, inline: true },
                         { name: '🤖 Selfbot', value: `\`${statsDuJour.selfbot}\``, inline: true },
-                        { name: '☢️ Tentatives Nuke', value: `\`${statsDuJour.nuke}\``, inline: true },
-                        { name: '🏆 TOP 3 FIABLES', value: topFiable.map(([id, d]) => `🥇 ${d.username || id} : \`${d.score}\` pts`).join('\n') || 'Aucun', inline: false },
-                        { name: '⛔ TOP 3 DANGEREUX', value: topDangereux.map(([id, d]) => `⚠️ ${d.username || id} : \`${d.score}\` pts`).join('\n') || 'Aucun', inline: false }
+                        { name: '☢️ Nuke', value: `\`${statsDuJour.nuke}\``, inline: true },
+                        { name: '🏆 Top 3', value: topFiable.map(([id, d]) => `• ${d.username || id} : \`${d.score}\``).join('\n') || 'Aucun', inline: false },
+                        { name: '⛔ Flop 3', value: topDangereux.map(([id, d]) => `• ${d.username || id} : \`${d.score}\``).join('\n') || 'Aucun', inline: false }
                     )
                     .setFooter({ text: `🛡️ Protection active depuis ${j}j ${h}h ${m}m` })
                     .setTimestamp();
@@ -529,7 +519,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4340960;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4359835;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -546,7 +536,6 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
                 { name: '🧠 Anti-Toxicité IA (Gemini)', value: '• Insultes, menaces, haine, arnaques.\n• Pub de serveurs et chaînes autorisée.' },
                 { name: '🔞 Anti-NSFW Messages', value: '• Détection des images à caractère sexuel explicite.' },
-                { name: '🔞 Anti-NSFW Serveur', value: '• Vérification de l\'icône et bannière du serveur.' },
                 { name: '🔤 Anti-Majuscules', value: '• Suppression des messages en majuscules abusives.' },
                 { name: '🏆 Système de Réputation', value: '• Score automatique selon comportement.\n• Sanctions auto si score négatif.' },
                 { name: '📊 Rapport Quotidien', value: '• Résumé chaque jour à minuit.' },
@@ -625,7 +614,7 @@ client.on('messageCreate', async (message) => {
     const targetGuildId = message.guild ? message.guild.id : GUILD_ID;
 
     if (!totalMessagesParServeur.has(targetGuildId)) {
-        totalMessagesParServeur.set(targetGuildId, 4340960);
+        totalMessagesParServeur.set(targetGuildId, 4359835);
     }
     const cumulActuel = totalMessagesParServeur.get(targetGuildId);
     totalMessagesParServeur.set(targetGuildId, cumulActuel + 1);
@@ -1012,7 +1001,7 @@ client.on('guildBanAdd', async (ban) => {
         const activityLogChannel = ban.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
 
         if (activityLogChannel && !historiqueBansModo.has(executor.id)) {
-            const embedBan = new EmbedBuilder().setColor('#c0392b').setTitle('🚫 MODÉRATION : MEMBRE BANNI').setDescription(`• **Membre :** ${ban.user.tag}\n• **Modérateur :** ${executor}`).setTimestamp();
+            const embedBan = new EmbedBuilder().setColor('#ffa500').setTitle('🚫 MODÉRATION : MEMBRE BANNI').setDescription(`• **Membre :** ${ban.user.tag}\n• **Modérateur :** ${executor}`).setTimestamp();
             await activityLogChannel.send({ embeds: [embedBan] }).catch(() => {});
         }
 
@@ -1131,8 +1120,8 @@ client.on('channelDelete', async (channel) => {
 });
 
 client.on('guildUpdate', async (oldGuild, newGuild) => {
-    // 🔞 Vérification NSFW du serveur
-    await verifierServeurNSFW(newGuild);
+    // 🔞 Vérification NSFW du serveur DÉSACTIVÉE TEMPORAIREMENT
+    // await verifierServeurNSFW(newGuild);
     
     try {
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1173,7 +1162,6 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
 client.on('guildMemberAdd', async (member) => {
     const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
 
-    // PARTIE A : BLOCAGE INTRUSION DE BOTS ÉTRANGERS
     if (member.user.bot) {
         try {
             await new Promise(resolve => setTimeout(resolve, 1500)); 
@@ -1223,7 +1211,6 @@ client.on('guildMemberAdd', async (member) => {
         return; 
     }
 
-    // PARTIE B : ANTI-RAID CLOUD & FLAGS AUTOMATISATION
     try {
         const aUnAvatar = member.user.avatar !== null;
         const compteUltraRecent = (Date.now() - member.user.createdTimestamp) < 24 * 60 * 60 * 1000;
