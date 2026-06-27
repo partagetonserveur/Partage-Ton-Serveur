@@ -50,6 +50,10 @@ const historiqueSuppressionEmojis = new Map();
 const precisionTracker = new Map();
 const dernierCheckToxicite = new Map();
 
+// 🆕 SUPER TRACKER + A.D.N.
+const pubTrackers = new Map();
+const trackerADN = new Map();
+
 // 📊 STATS RAPPORT QUOTIDIEN
 let statsDuJour = {
     messagesScannes: 0,
@@ -246,10 +250,14 @@ const SCAM_RULES = [
     { regex: /cl[a4][i1]m/i, points: 3 },       
     { regex: /g[i1]v[e3][a4]w[a4]y/i, points: 3 } 
 ];
-const regexPhishing = /(diiscord|disc0rd|discord-app|discord-gift|dlscord|discordg|free-nitro|nitro-gift|steam-gift|crypto-claim).*\.(com|ru|xyz|org|net|info|gift|click|link|apps)/i;
+// 🆕 Anti-Phishing Renforcé
+const regexPhishingComplet = /(diiscord|disc0rd|discord-app|discord-gift|dlscord|discordg|free.nitro|nitro.gift|steam.gift|steam.community|crypto.claim|verify.discord|claim.discord|gift.discord|bit\.ly|tinyurl\.com|cut\.ly|shorturl|ow\.ly|is\.gd|buff\.ly|rebrand\.ly|shorte\.st|adf\.ly|bc\.vc|ouo\.io|https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|discord.*\.(com|net|org|info|ru|cn|xyz|tk|ml|ga|cf|gq)\b)/i;
 const regexLienGeneral = /https?:\/\/[^\s]+/gi;
 const regexLienDiscordOfficiel = /https?:\/\/(www\.)?(discord\.(gg|com|me|io|media)|discordapp\.com)/i;
 const regexTokenDiscord = /[\w-]{24,26}\.[\w-]{6}\.[\w-]{25,110}/;
+// 🆕 Anti-Token Grabber
+const regexTokenGrabber = /discord\.com\/api\/webhooks/i;
+const regexFausseAPI = /(canary|ptb)\.discord\.com\/api/i;
 
 // ==========================================
 // 🚀 ÉVÉNEMENT : READY
@@ -262,6 +270,10 @@ client.on('ready', async () => {
     console.log(`🔤 Anti-Majuscules : ACTIVÉ`);
     console.log(`🏆 Système de Réputation : ACTIVÉ`);
     console.log(`📊 Rapport Quotidien : ACTIVÉ`);
+    console.log(`🔥 Super Tracker : ACTIVÉ`);
+    console.log(`🧬 A.D.N. : ACTIVÉ`);
+    console.log(`👻 Anti-Faux Comptes : ACTIVÉ`);
+    console.log(`🔑 Anti-Token Grabber : ACTIVÉ`);
     
     if (fs.existsSync('compteur.json')) {
         try {
@@ -276,7 +288,7 @@ client.on('ready', async () => {
         }
     } else {
         for (const [guildId] of client.guilds.cache) {
-            totalMessagesParServeur.set(guildId, 4359835);
+            totalMessagesParServeur.set(guildId, 4411025);
         }
     }
     
@@ -519,7 +531,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4359835;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4411025;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -534,15 +546,19 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
                 { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
-                { name: '🧠 Anti-Toxicité IA (Gemini)', value: '• Insultes, menaces, haine, arnaques.\n• Pub de serveurs et chaînes autorisée.' },
-                { name: '🔞 Anti-NSFW Messages', value: '• Détection des images à caractère sexuel explicite.' },
-                { name: '🔤 Anti-Majuscules', value: '• Suppression des messages en majuscules abusives.' },
-                { name: '🏆 Système de Réputation', value: '• Score automatique selon comportement.\n• Sanctions auto si score négatif.' },
+                { name: '🧠 Anti-Toxicité IA (Gemini)', value: '• Insultes, menaces, haine, arnaques.\n• Pub autorisée.' },
+                { name: '🔞 Anti-NSFW Messages', value: '• Détection des images explicites.' },
+                { name: '🔤 Anti-Majuscules', value: '• Suppression des majuscules abusives.' },
+                { name: '🏆 Système de Réputation', value: '• Score automatique.\n• Sanctions auto.' },
                 { name: '📊 Rapport Quotidien', value: '• Résumé chaque jour à minuit.' },
-                { name: '🛡️ Anti-Nuke & Anti-Token', value: '• Protection contre la fuite de jetons Discord et le saccage.' },
-                { name: '🛡️ Anti-Scam & Anti-Selfbot', value: '• Filtres intelligents et analyse comportementale.' },
-                { name: '🛡️ Anti-QR Code', value: '• Détection des QR codes frauduleux et phishing.' },
-                { name: '🛡️ Anti-Raid Cloud & VPN', value: '• Analyse des flags d\'automatisation et blocage de bots.' }
+                { name: '🔥 Super Tracker', value: '• Détection bots de pub.' },
+                { name: '🧬 A.D.N.', value: '• Empreinte robotique.' },
+                { name: '👻 Anti-Faux Comptes', value: '• Détection comptes suspects.' },
+                { name: '🔑 Anti-Token Grabber', value: '• Bloque les voleurs de token.' },
+                { name: '🛡️ Anti-Nuke & Anti-Token', value: '• Protection saccage et token.' },
+                { name: '🛡️ Anti-Scam & Anti-Selfbot', value: '• Filtres intelligents.' },
+                { name: '🛡️ Anti-QR Code', value: '• QR codes frauduleux.' },
+                { name: '🛡️ Anti-Raid Cloud & VPN', value: '• Blocage automatisation.' }
             )
             .setFooter({ text: `Demandé par ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
             .setTimestamp();
@@ -614,7 +630,7 @@ client.on('messageCreate', async (message) => {
     const targetGuildId = message.guild ? message.guild.id : GUILD_ID;
 
     if (!totalMessagesParServeur.has(targetGuildId)) {
-        totalMessagesParServeur.set(targetGuildId, 4359835);
+        totalMessagesParServeur.set(targetGuildId, 4411025);
     }
     const cumulActuel = totalMessagesParServeur.get(targetGuildId);
     totalMessagesParServeur.set(targetGuildId, cumulActuel + 1);
@@ -753,6 +769,157 @@ client.on('messageCreate', async (message) => {
         // 🔥 SÉCURITÉ MESSAGE
         // ==========================================
 
+        // 🆕 SUPER TRACKER ANTI-BOTS PUB
+        if (!message.author.bot && message.content.length > 5) {
+            const now = Date.now();
+            const hasLink = regexLienGeneral.test(message.content);
+            const heure = new Date().getHours();
+            
+            if (!pubTrackers.has(message.author.id)) {
+                pubTrackers.set(message.author.id, {
+                    messages: [], salons: new Set(), heuresActivite: new Set(),
+                    pubs: 0, score: 0, derniereAlerte: 0
+                });
+            }
+            
+            const t = pubTrackers.get(message.author.id);
+            t.messages.push({ timestamp: now, content: message.content.substring(0, 100), hasLink, salon: message.channel.id });
+            if (hasLink) t.pubs++;
+            t.salons.add(message.channel.id);
+            t.heuresActivite.add(heure);
+            if (t.messages.length > 100) t.messages.shift();
+            
+            if (t.messages.length >= 15 && t.messages.length % 15 === 0) {
+                let score = 0; const raisons = [];
+                const rp = t.pubs / t.messages.length;
+                
+                if (rp > 0.8) { score += 20; raisons.push(`Pubs : ${Math.round(rp*100)}%`); }
+                if (new Set(t.messages.map(m => m.content)).size < t.messages.length * 0.1) { score += 10; raisons.push('Messages répétitifs'); }
+                if (t.salons.size > 5) { score += 15; raisons.push(`Multi-salons (${t.salons.size})`); }
+                
+                const recent = t.messages.slice(-20);
+                if (recent.length >= 5) {
+                    const iv = [];
+                    for (let i = 1; i < recent.length; i++) iv.push(recent[i].timestamp - recent[i-1].timestamp);
+                    const avg = iv.reduce((a,b) => a+b, 0) / iv.length;
+                    if (iv.reduce((a,b) => a + Math.abs(b-avg), 0) / iv.length < 500) { score += 20; raisons.push(`Timing parfait (${Math.round(avg/1000)}s)`); }
+                }
+                
+                if (t.heuresActivite.size > 16) { score += 25; raisons.push(`Actif ${t.heuresActivite.size}h/24`); }
+                const nuit = t.messages.filter(m => { const h = new Date(m.timestamp).getHours(); return h >= 3 && h <= 6; });
+                if (nuit.length > 5) { score += 15; raisons.push(`${nuit.length} msg la nuit`); }
+                if (rp > 0.95 && t.messages.length > 20) { score += 10; raisons.push('Que des liens'); }
+                
+                t.score = Math.min(100, score);
+                
+                if (score > 50 && (now - t.derniereAlerte > 3600000)) {
+                    t.derniereAlerte = now;
+                    let malus = 0, sanction = '';
+                    if (score >= 80) { malus = -40; sanction = 'Timeout 24h'; message.member.timeout(86400000, 'Bot pub confirmé').catch(() => {}); }
+                    else if (score >= 65) { malus = -25; sanction = 'Timeout 6h'; message.member.timeout(21600000, 'Bot pub suspect').catch(() => {}); }
+                    else { malus = -10; sanction = 'Surveillance'; }
+                    
+                    addReputation(message.author.id, malus, `Bot pub (${score}%)`, message.author.username);
+                    
+                    const lc = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+                    if (lc) {
+                        await lc.send({ embeds: [
+                            new EmbedBuilder().setColor('#ff0000').setTitle('🔥 [SUPER TRACKER] 🔥')
+                                .addFields(
+                                    { name: '👤', value: `${message.author}`, inline: true },
+                                    { name: '⚠️ Score', value: `\`${score}%\``, inline: true },
+                                    { name: '⏳', value: sanction, inline: true },
+                                    { name: '📋 Raisons', value: raisons.map(r => `• ${r}`).join('\n'), inline: false }
+                                )
+                        ]});
+                    }
+                }
+            }
+        }
+
+        // 🆕 A.D.N. COMPORTEMENTAL
+        if (!message.author.bot && message.content.length > 5) {
+            const now = Date.now();
+            
+            if (!trackerADN.has(message.author.id)) {
+                trackerADN.set(message.author.id, {
+                    messages: [], mots: new Set(), emojis: 0,
+                    questions: 0, score: 0, derniereAlerte: 0
+                });
+            }
+            
+            const a = trackerADN.get(message.author.id);
+            message.content.split(/\s+/).forEach(w => a.mots.add(w.toLowerCase()));
+            if (/[\p{Emoji}]/u.test(message.content)) a.emojis++;
+            if (message.content.includes('?')) a.questions++;
+            a.messages.push({ timestamp: now, length: message.content.length, heure: new Date().getHours() });
+            if (a.messages.length > 100) a.messages.shift();
+            
+            if (a.messages.length >= 30 && a.messages.length % 10 === 0) {
+                let score = 0; const raisons = [];
+                
+                const iv = []; for (let i = 1; i < a.messages.length; i++) iv.push(a.messages[i].timestamp - a.messages[i-1].timestamp);
+                const avg = iv.reduce((a,b) => a+b, 0) / iv.length;
+                if (iv.reduce((a,b) => a + Math.abs(b-avg), 0) / iv.length < 200) { score += 30; raisons.push('Frappe trop régulière'); }
+                
+                const lg = a.messages.map(m => m.length); const avgL = lg.reduce((a,b) => a+b, 0) / lg.length;
+                if (lg.reduce((a,b) => a + Math.abs(b-avgL), 0) / lg.length < 5) { score += 20; raisons.push('Longueur trop stable'); }
+                
+                if (a.mots.size < 30) { score += 20; raisons.push(`Lexique pauvre (${a.mots.size} mots)`); }
+                if (a.emojis / a.messages.length < 0.02) { score += 15; raisons.push('Aucun emoji'); }
+                
+                const nuit = a.messages.filter(m => m.heure >= 3 && m.heure <= 6);
+                if (nuit.length / a.messages.length > 0.3) { score += 25; raisons.push('Activité nocturne'); }
+                
+                a.score = Math.min(100, score);
+                
+                if (score > 70 && (now - a.derniereAlerte > 3600000)) {
+                    a.derniereAlerte = now;
+                    let malus = 0, sanction = '';
+                    if (score >= 90) { malus = -30; sanction = 'Timeout 24h'; message.member.timeout(86400000, 'A.D.N. robotique').catch(() => {}); }
+                    else if (score >= 80) { malus = -20; sanction = 'Timeout 6h'; message.member.timeout(21600000, 'A.D.N. suspect').catch(() => {}); }
+                    else { malus = -10; sanction = 'Surveillance'; }
+                    
+                    addReputation(message.author.id, malus, `A.D.N. robotique (${score}%)`, message.author.username);
+                    
+                    const lc = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+                    if (lc) {
+                        await lc.send({ embeds: [
+                            new EmbedBuilder().setColor('#ff0000').setTitle('🧬 [A.D.N. - EMPREINTE ROBOTIQUE] 🧬')
+                                .addFields(
+                                    { name: '👤', value: `${message.author}`, inline: true },
+                                    { name: '⚠️ Score', value: `\`${score}%\``, inline: true },
+                                    { name: '⏳', value: sanction, inline: true },
+                                    { name: '📋 Raisons', value: raisons.map(r => `• ${r}`).join('\n'), inline: false }
+                                )
+                        ]});
+                    }
+                }
+            }
+        }
+
+        // 🔑 ANTI-TOKEN GRABBER
+        if (regexTokenGrabber.test(message.content) || regexFausseAPI.test(message.content)) {
+            await message.delete().catch(() => {});
+            addReputation(message.author.id, -15, 'Token grabber', message.author.username);
+            const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+            if (logChannel) await logChannel.send(`🔑 **[TOKEN GRABBER]** ${message.author}`);
+            return;
+        }
+
+        // 🔑 ANTI-FICHIERS DANGEREUX
+        if (message.attachments.size > 0) {
+            for (const attachment of message.attachments.values()) {
+                if (/\.(exe|bat|scr|msi|cmd|ps1|vbs|jar)$/i.test(attachment.name)) {
+                    await message.delete().catch(() => {});
+                    addReputation(message.author.id, -15, 'Fichier exécutable', message.author.username);
+                    const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+                    if (logChannel) await logChannel.send(`🔑 **[FICHIER BLOQUÉ]** ${message.author} - \`${attachment.name}\``);
+                    return;
+                }
+            }
+        }
+
         // 0️⃣ ANTI-NSFW IMAGES
         if (message.attachments.size > 0) {
             for (const attachment of message.attachments.values()) {
@@ -765,9 +932,9 @@ client.on('messageCreate', async (message) => {
                         addReputation(message.author.id, -10, 'Image NSFW', message.author.username);
                         const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
                         if (logChannel) {
-                            await logChannel.send(`🔞 **[ANTI-NSFW]** 🔞\n• **Auteur :** ${message.author} (\`${message.author.id}\`)\n• **Salon :** ${message.channel}\n• **Raison :** ${analyseNSFW.raison}\n• **Score :** ${rep.score} → ${rep.score - 10}`);
+                            await logChannel.send(`🔞 **[ANTI-NSFW]** 🔞\n• **Auteur :** ${message.author}\n• **Raison :** ${analyseNSFW.raison}`);
                         }
-                        await envoyerAlerteMP(message.author, message.guild.name, "Image à caractère sexuel explicite détectée.", `Message supprimé. Score de réputation : ${rep.score}.`);
+                        await envoyerAlerteMP(message.author, message.guild.name, "Image à caractère sexuel explicite détectée.", "Message supprimé.");
                         return;
                     }
                 }
@@ -785,10 +952,7 @@ client.on('messageCreate', async (message) => {
                     await message.delete().catch(() => {});
                     addReputation(message.author.id, -2, 'Majuscules abusives', message.author.username);
                     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
-                    if (logChannel) {
-                        await logChannel.send(`🔤 **[ANTI-MAJUSCULES]** 🔤\n• **Auteur :** ${message.author} (\`${message.author.id}\`)\n• **Salon :** ${message.channel}\n• **Taux :** ${pourcentage.toFixed(0)}% de majuscules\n• **Score :** ${rep.score} → ${rep.score - 2}`);
-                    }
-                    await envoyerAlerteMP(message.author, message.guild.name, "Utilisation abusive de majuscules détectée.", `Message supprimé. Score de réputation : ${rep.score}.`);
+                    if (logChannel) await logChannel.send(`🔤 **[ANTI-MAJUSCULES]** ${message.author}`);
                     return;
                 }
             }
@@ -813,26 +977,12 @@ client.on('messageCreate', async (message) => {
                     addReputation(message.author.id, pointsRetires, analyseToxicite.categorie, message.author.username);
                     
                     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
-                    const emojiGravite = analyseToxicite.gravite === 3 ? '🔴' : analyseToxicite.gravite === 2 ? '🟠' : '🟡';
-                    
-                    if (logChannel) {
-                        await logChannel.send(`${emojiGravite} **[ANTI-TOXICITÉ IA - ${analyseToxicite.categorie.toUpperCase()}]** ${emojiGravite}\n• **Auteur :** ${message.author} (\`${message.author.id}\`)\n• **Salon :** ${message.channel}\n• **Gravité :** Niveau ${analyseToxicite.gravite}/3\n• **Raison :** ${analyseToxicite.raison}\n• **Score :** ${rep.score} → ${rep.score + pointsRetires}\n• **Message :** ||${message.content.slice(0, 500)}||`);
-                    }
-                    
-                    await envoyerAlerteMP(message.author, message.guild.name, `Message toxique détecté par l'IA : ${analyseToxicite.raison}`, `Message supprimé. Score de réputation : ${rep.score + pointsRetires}.`);
+                    if (logChannel) await logChannel.send(`🧠 **[${analyseToxicite.categorie.toUpperCase()}]** ${message.author} - ${analyseToxicite.raison}`);
                     
                     if (analyseToxicite.gravite >= 3) {
-                        try {
-                            await message.member.timeout(3600000, `Anti-toxicité IA : ${analyseToxicite.categorie}`).catch(() => {});
-                            addReputation(message.author.id, -20, 'Timeout reçu', message.author.username);
-                            if (logChannel) {
-                                await logChannel.send(`⏱️ **Timeout automatique de 1h** appliqué à ${message.author} pour ${analyseToxicite.categorie}.\n• **Score :** ${rep.score + pointsRetires - 20}`);
-                            }
-                        } catch (err) {
-                            console.error("Impossible d'appliquer le timeout :", err.message);
-                        }
+                        await message.member.timeout(3600000, `Anti-toxicité IA : ${analyseToxicite.categorie}`).catch(() => {});
+                        addReputation(message.author.id, -20, 'Timeout reçu', message.author.username);
                     }
-                    
                     return;
                 }
             }
@@ -844,10 +994,7 @@ client.on('messageCreate', async (message) => {
             await message.delete().catch(() => {});
             addReputation(message.author.id, -10, 'Fuite de token', message.author.username);
             const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
-            if (logChannel) {
-                await logChannel.send(`🚨 **[ALERTE SECURITE : FUITE DE TOKEN]** 🚨\n• **Auteur :** ${message.author} (\`${message.author.id}\`)\n• **Salon :** ${message.channel}\n• **Action :** Message supprimé d'urgence.\n• **Score :** ${rep.score} → ${rep.score - 10}`);
-            }
-            await envoyerAlerteMP(message.author, message.guild.name, "Fuite de jeton d'authentification (Token Discord) détectée dans votre message.", `Suppression immédiate. Score de réputation : ${rep.score - 10}.`);
+            if (logChannel) await logChannel.send(`🚨 **[FUITE DE TOKEN]** ${message.author}`);
             return;
         }
 
@@ -858,24 +1005,15 @@ client.on('messageCreate', async (message) => {
             const intervalle = tempsActuel - dernierTempsMessage; 
             const longueurTexte = message.content.length;
 
-            if (longueurTexte > 30 && intervalle < 500) {
+            if (longueurTexte > 50 && intervalle < 100) {
                 statsDuJour.selfbot++;
-                const vitesseInhumaine = (longueurTexte / (intervalle / 1000)).toFixed(0);
-                
                 await message.delete().catch(() => {});
                 addReputation(message.author.id, -5, 'Copier-coller massif', message.author.username);
-                const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
-                if (logChannel) {
-                    await logChannel.send(`🛡️ **[ANTI-COPIL : COPIER-COLLER DETECTÉ]** 🛡️\n• **Auteur :** ${message.author}\n• **Salon :** ${message.channel}\n• **Détails :** ${longueurTexte} caractères envoyés en \`${intervalle}ms\` (Vitesse : ~${vitesseInhumaine} char/sec).\n• **Score :** ${rep.score} → ${rep.score - 5}`);
-                }
-                await envoyerAlerteMP(message.author, message.guild.name, "Détection d'un copier-coller massif ou instantané (Comportement de Selfbot/Macro).", `Message supprimé. Score de réputation : ${rep.score - 5}.`);
                 return;
             }
 
-            // Anti-Spam flood
-            if (intervalle < 200) {
+            if (intervalle < 100) {
                 await message.delete().catch(() => {});
-                await envoyerAlerteMP(message.author, message.guild.name, "Flood détecté (messages envoyés trop rapidement).", `Message supprimé. Score de réputation : ${rep.score}.`).catch(() => {});
                 return;
             }
         }
@@ -965,9 +1103,8 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
             statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (flood emojis)', executor.username);
-            await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : FLOOD EMOJIS]** 🚨🚨\n• **Auteur :** ${executor}\n• **Contre-mesure :** Émoji supprimé + Rôles retirés.\n• **Score :** ${getReputation(executor.id).score}`);
+            await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : FLOOD EMOJIS]** 🚨🚨\n• **Auteur :** ${executor}\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueCreationEmojis.delete(executor.id);
-            await envoyerAlerteMP(executor, guild.name, "Création massive d'emojis détectée (Tentative de Nuke).", "Émojis supprimés + Rôles réinitialisés.").catch(() => {});
         }
     }
 
@@ -981,9 +1118,8 @@ client.on('guildAuditLogEntryCreate', async (auditLogEntry, guild) => {
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
             statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (destruction emojis)', executor.username);
-            await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : DESTRUCTION EMOJIS]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles supprimés immédiatement.\n• **Score :** ${getReputation(executor.id).score}`);
+            await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : DESTRUCTION EMOJIS]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueSuppressionEmojis.delete(executor.id);
-            await envoyerAlerteMP(executor, guild.name, "Suppression massive d'emojis détectée (Tentative de Nuke).", "Rôles réinitialisés.").catch(() => {});
         }
     }
 });
@@ -1001,7 +1137,7 @@ client.on('guildBanAdd', async (ban) => {
         const activityLogChannel = ban.guild.channels.cache.get(ACTIVITY_LOG_CHANNEL_ID);
 
         if (activityLogChannel && !historiqueBansModo.has(executor.id)) {
-            const embedBan = new EmbedBuilder().setColor('#ffa500').setTitle('🚫 MODÉRATION : MEMBRE BANNI').setDescription(`• **Membre :** ${ban.user.tag}\n• **Modérateur :** ${executor}`).setTimestamp();
+            const embedBan = new EmbedBuilder().setColor('#c0392b').setTitle('🚫 MODÉRATION : MEMBRE BANNI').setDescription(`• **Membre :** ${ban.user.tag}\n• **Modérateur :** ${executor}`).setTimestamp();
             await activityLogChannel.send({ embeds: [embedBan] }).catch(() => {});
         }
 
@@ -1015,9 +1151,8 @@ client.on('guildBanAdd', async (ban) => {
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error); 
             statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (bans massifs)', executor.username);
-            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : BAN]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles supprimés.\n• **Score :** ${getReputation(executor.id).score}`);
+            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : BAN]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueBansModo.delete(executor.id);
-            await envoyerAlerteMP(executor, ban.guild.name, "Bannissement massif de membres détecté (Tentative de Nuke).", "Rôles réinitialisés.").catch(() => {});
         }
     } catch (err) { console.error(err); }
 });
@@ -1055,9 +1190,8 @@ client.on('guildMemberRemove', async (member) => {
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
             statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (kicks massifs)', executor.username);
-            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : KICK]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles supprimés.\n• **Score :** ${getReputation(executor.id).score}`);
+            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : KICK]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueKicksModo.delete(executor.id);
-            await envoyerAlerteMP(executor, member.guild.name, "Expulsion massive de membres détectée (Tentative de Nuke).", "Rôles réinitialisés.").catch(() => {});
         }
     } catch (err) { console.error(err); }
 });
@@ -1084,9 +1218,8 @@ client.on('channelCreate', async (channel) => {
             statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (flood salons)', executor.username);
             const logChannel = channel.guild.channels.cache.get(LOG_CHANNEL_ID);
-            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : FLOOD CREATION]** 🚨🚨\n• **Auteur :** ${executor}\n• **Contre-mesure :** Rôles retirés.\n• **Score :** ${getReputation(executor.id).score}`);
+            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : FLOOD CREATION]** 🚨🚨\n• **Auteur :** ${executor}\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueCreationSalons.delete(executor.id);
-            await envoyerAlerteMP(executor, channel.guild.name, "Création massive de salons détectée (Tentative de Nuke).", "Salons supprimés + Rôles réinitialisés.").catch(() => {});
         }
     } catch (err) { console.error(err); }
 });
@@ -1112,9 +1245,8 @@ client.on('channelDelete', async (channel) => {
             statsDuJour.nuke++;
             addReputation(executor.id, -15, 'Tentative de Nuke (destruction salons)', executor.username);
             const logChannel = channel.guild.channels.cache.get(LOG_CHANNEL_ID);
-            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : DESTRUCTION SALONS]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Contre-mesure :** Rôles retirés.\n• **Score :** ${getReputation(executor.id).score}`);
+            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE ANTI-NUKE : DESTRUCTION SALONS]** 🚨🚨\n• **Modérateur :** ${executor}\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueSuppressionSalons.delete(executor.id);
-            await envoyerAlerteMP(executor, channel.guild.name, "Suppression massive de salons détectée (Tentative de Nuke).", "Rôles réinitialisés.").catch(() => {});
         }
     } catch (err) { console.error(err); }
 });
@@ -1148,10 +1280,9 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
             const memberStaff = await newGuild.members.fetch(executor.id).catch(() => null);
             if (memberStaff && memberStaff.manageable) await memberStaff.roles.set([]).catch(console.error);
             statsDuJour.nuke++;
-            addReputation(executor.id, -15, 'Tentative de vandalisme (modifications serveur)', executor.username);
-            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE VANDALISME]** 🚨🚨\n• **Auteur :** ${executor}\n• **Action :** Rôles supprimés.\n• **Score :** ${getReputation(executor.id).score}`);
+            addReputation(executor.id, -15, 'Tentative de vandalisme', executor.username);
+            if (logChannel) await logChannel.send(`🚨🚨 **[URGENCE VANDALISME]** 🚨🚨\n• **Auteur :** ${executor}\n• **Score :** ${getReputation(executor.id).score}`);
             historiqueModifsServeur.delete(executor.id);
-            await envoyerAlerteMP(executor, newGuild.name, "Modifications répétées du serveur détectées (Tentative de vandalisme).", "Modifications annulées + Rôles réinitialisés.").catch(() => {});
         }
     } catch (err) { console.error(err); }
 });
@@ -1176,7 +1307,7 @@ client.on('guildMemberAdd', async (member) => {
             const { executor } = botAddLog;
 
             if (executor.id !== member.guild.ownerId) {
-                await member.ban({ reason: `Anti-Bot : Tentative d'intrusion. Invité par ${executor.username} au lieu du Fonda.` }).catch(() => {});
+                await member.ban({ reason: `Anti-Bot : Tentative d'intrusion.` }).catch(() => {});
                 
                 const staffMalveillant = await member.guild.members.fetch(executor.id).catch(() => null);
                 if (staffMalveillant && staffMalveillant.manageable) {
@@ -1189,51 +1320,66 @@ client.on('guildMemberAdd', async (member) => {
                     const embedIntrusion = new EmbedBuilder()
                         .setColor('#ffa500')
                         .setTitle('🚨 ALERTE SÉCURITÉ : INTRUSION DE BOT BLOQUÉE')
-                        .setDescription(`Un membre du staff ou un utilisateur a tenté d'ajouter un bot de force.`)
                         .addFields(
-                            { name: '🤖 Bot bloqué', value: `${member.user} (\`${member.user.id}\`)`, inline: true },
-                            { name: '👤 Inviteur', value: `${executor} (\`${executor.id}\`)`, inline: true },
-                            { name: '🛡️ Sanction', value: `\`Bot banni à vie\` + \`Rôles de l'inviteur réinitialisés\``, inline: false },
-                            { name: '🏆 Score', value: `\`${getReputation(executor.id).score}\``, inline: false }
+                            { name: '🤖 Bot bloqué', value: `${member.user}`, inline: true },
+                            { name: '👤 Inviteur', value: `${executor}`, inline: true }
                         )
                         .setTimestamp();
                     await logChannel.send({ embeds: [embedIntrusion] });
                 }
-                await envoyerAlerteMP(executor, member.guild.name, "Tentative d'ajout non autorisé d'un bot sur le serveur.", "Bot banni + Vos rôles ont été réinitialisés.").catch(() => {});
-            } else {
-                if (logChannel) {
-                    await logChannel.send(`🟢 **[ANTI-BOT]** Le bot ${member.user} a été autorisé (invité par le propriétaire).`);
-                }
             }
         } catch (error) {
-            console.error("Erreur dans le module strict Anti-Bot :", error);
+            console.error("Erreur Anti-Bot :", error);
         }
         return; 
     }
 
+    // 👻 ANTI-FAUX COMPTES
+    try {
+        const aUnAvatar = member.user.avatar !== null;
+        const compteAge = (Date.now() - member.user.createdTimestamp) / 3600000;
+        let suspect = false, raison = '';
+        
+        if (compteAge < 1) { suspect = true; raison = 'Compte créé il y a moins d\'1 heure'; }
+        else if (compteAge < 24 && !aUnAvatar) { suspect = true; raison = 'Compte récent sans avatar'; }
+        else {
+            const nomSuspect = /^[a-zA-Z0-9]{8,}$/.test(member.user.username) || /[0-9]{4,}$/.test(member.user.username) || /^[a-z]{10,}[0-9]{2,}$/i.test(member.user.username);
+            if (nomSuspect && compteAge < 72) { suspect = true; raison = 'Nom suspect (pattern bot)'; }
+            else {
+                const uf = await member.user.fetch().catch(() => null);
+                if (!aUnAvatar && !uf?.bio && !uf?.banner && compteAge < 168) { suspect = true; raison = 'Profil vide (bot probable)'; }
+            }
+        }
+        
+        if (suspect) {
+            await member.kick(`Anti-Faux Comptes : ${raison}`).catch(() => {});
+            if (logChannel) await logChannel.send({ embeds: [new EmbedBuilder().setColor('#ff0000').setTitle('👻 [FAUX COMPTE] 👻').setDescription(`${member.user.tag} expulsé.`).addFields({ name: '⚠️', value: raison })] });
+            return;
+        }
+    } catch (e) {}
+
+    // Anti-Raid VPN
     try {
         const aUnAvatar = member.user.avatar !== null;
         const compteUltraRecent = (Date.now() - member.user.createdTimestamp) < 24 * 60 * 60 * 1000;
 
         if (compteUltraRecent && !aUnAvatar) {
-            await member.kick("Sécurité Anti-Raid Cloud : Profil suspect (Flags d'automatisation/VPN).").catch(() => {});
+            await member.kick("Sécurité Anti-Raid Cloud : Profil suspect.").catch(() => {});
             
             if (logChannel) {
                 const embedVPN = new EmbedBuilder()
                     .setColor('#ffa500')
                     .setTitle('🛡️ ANTI-RAID INFRASTRUCTURE CLOUD')
-                    .setDescription(`Une tentative de connexion automatisée (via Proxy/VPN/Cloud) a été rejetée.`)
+                    .setDescription(`Une tentative de connexion automatisée a été rejetée.`)
                     .addFields(
-                        { name: '👤 Compte intercepté', value: `${member.user.tag} (\`${member.user.id}\`)`, inline: true },
-                        { name: '⚠️ Motif détecté', value: `\`Flag d'automatisation (No-Avatar + Compte < 24h)\``, inline: true }
+                        { name: '👤 Compte intercepté', value: `${member.user.tag}`, inline: true }
                     )
                     .setTimestamp();
                 await logChannel.send({ embeds: [embedVPN] });
             }
-            await envoyerAlerteMP(member.user, member.guild.name, "Votre compte a été détecté comme suspect (Profil sans avatar + Compte créé il y a moins de 24h).", "Expulsion du serveur.").catch(() => {});
         }
     } catch (error) {
-        console.error("Erreur dans l'Analyseur de Flags/VPN :", error);
+        console.error("Erreur Anti-Raid :", error);
     }
 });
 
@@ -1248,10 +1394,9 @@ async function verifierBioMemBRE(member) {
         if (regexLienDiscordOfficiel.test(lien)) continue;
         try {
             const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
-            addReputation(member.user.id, -5, 'Lien malveillant dans la bio', member.user.username);
-            await envoyerAlerteMP(member.user, member.guild.name, "Lien malveillant ou publicitaire détecté dans votre bio Discord.", "Expulsion immédiate du serveur (Kick).");
+            await envoyerAlerteMP(member.user, member.guild.name, "Lien malveillant dans votre bio.", "Expulsion.");
             await member.kick("Anti-Bio Malveillante").catch(() => {});
-            if (logChannel) await logChannel.send(`🛡️ **[ANTI-BIO MALVEILLANTE]** 🛡️\n• **Utilisateur expulsé :** ${member.user}\n• **Lien :** \`${lien}\`\n• **Score :** ${getReputation(member.user.id).score}`);
+            if (logChannel) await logChannel.send(`🛡️ **[ANTI-BIO]** ${member.user} expulsé.`);
             break;
         } catch (err) { console.error(err); }
     }
@@ -1278,19 +1423,17 @@ async function verifierContenuMessage(message, content, rep) {
 
                 if (code && code.data) {
                     const qrText = code.data;
-                    if (regexPhishing.test(qrText) || SCAM_RULES.some(rule => rule.regex.test(qrText))) {
+                    if (regexPhishingComplet.test(qrText) || SCAM_RULES.some(rule => rule.regex.test(qrText))) {
                         await message.delete().catch(() => {});
                         addReputation(message.author.id, -10, 'QR code frauduleux', message.author.username);
                         const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
-                        if (logChannel) {
-                            await logChannel.send(`🛡️ **[ANTI-QR CODE FRAUDULEUX]** 🛡️\n• **Auteur :** ${message.author}\n• **Salon :** ${message.channel}\n• **Lien masqué :** \`${qrText}\`\n• **Score :** ${rep.score} → ${rep.score - 10}`);
-                        }
-                        await envoyerAlerteMP(message.author, message.guild.name, "Envoi d'un QR Code contenant un lien suspect.", "Suppression immédiate du message.");
+                        if (logChannel) await logChannel.send(`🛡️ **[ANTI-QR CODE]** ${message.author}`);
+                        await envoyerAlerteMP(message.author, message.guild.name, "QR Code suspect détecté.", "Message supprimé.");
                         return true; 
                     }
                 }
             } catch (err) {
-                console.error("Erreur lors de l'analyse du QR code :", err.message);
+                console.error("Erreur QR code :", err.message);
             }
         }
     }
