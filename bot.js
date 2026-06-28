@@ -288,7 +288,7 @@ client.on('ready', async () => {
         }
     } else {
         for (const [guildId] of client.guilds.cache) {
-            totalMessagesParServeur.set(guildId, 4411025);
+            totalMessagesParServeur.set(guildId, 4417835);
         }
     }
     
@@ -358,6 +358,24 @@ client.on('ready', async () => {
             }
         });
     }, 604800000);
+
+    // 📊 COMPTEUR MESSAGES VOCAL (dans ready)
+const STATS_VOCAL_ID = "1256641409167917209"; // À remplacer
+
+setInterval(async () => {
+    const guild = client.guilds.cache.get(GUILD_ID);
+    if (!guild) return;
+    
+    const statsChannel = guild.channels.cache.get(STATS_VOCAL_ID);
+    if (!statsChannel) return;
+    
+    const totalMessages = totalMessagesParServeur.get(GUILD_ID) || 0;
+    const newName = `📊 Messages : ${totalMessages.toLocaleString()}`;
+    
+    if (statsChannel.name !== newName) {
+        await statsChannel.setName(newName).catch(() => {});
+    }
+}, 600000); // Toutes les 10 minutes
 
     // 📊 RAPPORT QUOTIDIEN (tous les jours à minuit)
     setInterval(() => {
@@ -531,7 +549,7 @@ client.on('interactionCreate', async (interaction) => {
         let seconds = Math.floor(totalSeconds % 60);
 
         const usageMemoire = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-        const totalMessages = totalMessagesParServeur.get(guildId) || 4411025;
+        const totalMessages = totalMessagesParServeur.get(guildId) || 4417835;
         const totalMembres = interaction.guild.memberCount;
 
         const statusEmbed = new EmbedBuilder()
@@ -630,7 +648,7 @@ client.on('messageCreate', async (message) => {
     const targetGuildId = message.guild ? message.guild.id : GUILD_ID;
 
     if (!totalMessagesParServeur.has(targetGuildId)) {
-        totalMessagesParServeur.set(targetGuildId, 4411025);
+        totalMessagesParServeur.set(targetGuildId, 4417835);
     }
     const cumulActuel = totalMessagesParServeur.get(targetGuildId);
     totalMessagesParServeur.set(targetGuildId, cumulActuel + 1);
