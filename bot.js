@@ -18,6 +18,7 @@ const sharp = require('sharp');
 const jsQR = require('jsqr');
 const fs = require('fs');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const OpenAI = require('openai');
 
 // ==========================================
 // ⚙️ CONFIGURATION ET VARIABLES GLOBALES
@@ -28,8 +29,13 @@ const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "78595694050410516";
 const ACTIVITY_LOG_CHANNEL_ID = process.env.ACTIVITY_LOG_CHANNEL_ID || "785957047245864980"; 
 const RAPPORT_CHANNEL_ID = process.env.RAPPORT_CHANNEL_ID || "1516443375774208171";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyDs6VkzkX_Eb-GCkbxLxs18UiRSNXCoa-g";
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "sk-5bc2f2b1acd949bfbebb7a0344c70b2f";
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const deepseek = new OpenAI({
+    baseURL: 'https://api.deepseek.com',
+    apiKey: DEEPSEEK_API_KEY
+});
 
 // Mémoires vives globales
 const ticketsMembres = new Map(); 
@@ -143,19 +149,24 @@ async function envoyerAlerteMP(user, guildName, raison, sanction) {
     } 
 }
 
-// 🧠 FONCTION ANTI-TOXICITÉ GEMINI
-async function verifierToxiciteGemini(texte, auteur, salon) { 
-    try { 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); 
-        const prompt = `Analyse ce message Discord en français. Le serveur est un serveur de PUBLICITÉ, donc les liens, invitations et promotions de serveurs/chaînes/réseaux sont AUTORISÉS. Réponds UNIQUEMENT par un objet JSON valide, sans aucun texte autour, sans markdown.\n\nMessage : "${texte}"\nAuteur : "${auteur}"\nSalon : "${salon}"\n\nFormat exact attendu :\n{"estToxique":true,"categorie":"insulte","raison":"explication courte","gravite":1}\n\nCatégories à détecter :\n- "insulte" : insultes directes ou déguisées\n- "menace" : menaces physiques, hacking, dox, chantage\n- "haine" : racisme, homophobie, sexisme, discrimination\n- "harcelement" : s'en prendre personnellement à quelqu'un\n- "sexuel" : contenu à caractère sexuel non désiré\n- "dox" : partage d'informations personnelles\n- "arnaque" : vente de nitro, vente de comptes, liens de phishing, demandes d'argent suspectes, crypto douteuse\n- "usurpation" : se faire passer pour un membre du staff ou le fondateur\n- "suicide" : contenu évoquant le suicide ou l'automutilation\n- "violence" : descriptions extrêmement violentes ou gore\n- "aucune" : message normal\n\nGravité :\n- 1 = avertissement\n- 2 = suppression du message\n- 3 = sanction lourde\n\nRÈGLES IMPORTANTES :\n- Les liens d'invitation Discord, pubs YouTube/Twitch/Instagram sont NORMAUX et AUTORISÉS\n- La promotion de serveurs et chaînes est AUTORISÉE\n- BLOQUER : vente de nitro, vente de comptes, "nitro pas cher", "j'achète/vends des comptes"\n- BLOQUER : liens suspects type phishing, "clique pour nitro gratuit"\n- BLOQUER : demandes d'argent, crypto douteuse, "investissement" suspect\n- estToxique=true UNIQUEMENT pour les catégories ci-dessus`; 
-        const result = await model.generateContent(prompt); 
-        const response = result.response.text(); 
-        const jsonStr = response.replace(/```json|```/g, '').trim(); 
-        return JSON.parse(jsonStr); 
-    } catch (err) { 
-        console.error("Erreur Gemini :", err.message); 
-        return { estToxique: false, categorie: "erreur", raison: "Analyse impossible", gravite: 0 }; 
-    } 
+// 🧠 FONCTION ANTI-TOXICITÉ DEEPSEEK
+async function verifierToxiciteDeepSeek(texte, auteur, salon) {
+    try {
+        const completion = await deepseek.chat.completions.create({
+            model: "deepseek-chat",
+            messages: [
+                { role: "system", content: "Tu es un modérateur Discord. Analyse le message et réponds UNIQUEMENT par un objet JSON valide. Le serveur autorise la publicité de serveurs/chaînes. Les pubs sont AUTORISÉES." },
+                { role: "user", content: `Message : "${texte}"\nAuteur : "${auteur}"\nSalon : "${salon}"\n\nRéponds au format : {"estToxique":true,"categorie":"insulte","raison":"...","gravite":1}\n\nCatégories : insulte, menace, haine, harcelement, sexuel, dox, arnaque, usurpation, suicide, violence, aucune\nGravité : 1=avertissement, 2=suppression, 3=sanction\n\nRègles : Pub autorisée. Bloque vente nitro/comptes/phishing/crypto.` }
+            ],
+            temperature: 0.1,
+            max_tokens: 150
+        });
+        const response = completion.choices[0].message.content;
+        return JSON.parse(response.replace(/```json|```/g, '').trim());
+    } catch (err) {
+        console.error("Erreur DeepSeek :", err.message);
+        return { estToxique: false, categorie: "erreur", raison: "Analyse impossible", gravite: 0 };
+    }
 }
 
 // 🔞 FONCTION ANTI-NSFW IMAGES
@@ -264,7 +275,7 @@ const regexFausseAPI = /(canary|ptb)\.discord\.com\/api/i;
 // ==========================================
 client.on('ready', async () => {
     console.log(`🤖 Le bot de protection ${client.user.tag} est en ligne !`);
-    console.log(`🧠 Anti-Toxicité Gemini : ACTIVÉ`);
+    console.log(`🧠 Anti-Toxicité DeepSeek : ACTIVÉ`);
     console.log(`🔞 Anti-NSFW Messages : ACTIVÉ`);
     console.log(`🔞 Anti-NSFW Serveur : DÉSACTIVÉ (quota)`);
     console.log(`🔤 Anti-Majuscules : ACTIVÉ`);
@@ -564,8 +575,8 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '📊 Total Messages Scannés', value: `\`${totalMessages.toLocaleString()}\` messages`, inline: true },
                 { name: '⏱️ Temps de fonctionnement', value: `\`${days}j ${hours}h ${minutes}m ${seconds}s\``, inline: true },
                 { name: '⚙️ Sécurités Armées & Protocoles', value: '---' },
-                { name: '🧠 Anti-Toxicité IA (Gemini)', value: '• Insultes, menaces, haine, arnaques.\n• Pub autorisée.' },
-                { name: '🔞 Anti-NSFW Messages', value: '• Détection des images explicites.' },
+                { name: '🧠 Anti-Toxicité DeepSeek', value: '• Insultes, menaces, haine, arnaques.\n• Pub autorisée.' },
+                { name: '🔞 Anti-NSFW Messages', value: '• Détection des images explicites (Gemini).' },
                 { name: '🔤 Anti-Majuscules', value: '• Suppression des majuscules abusives.' },
                 { name: '🏆 Système de Réputation', value: '• Score automatique.\n• Sanctions auto.' },
                 { name: '📊 Rapport Quotidien', value: '• Résumé chaque jour à minuit.' },
@@ -976,13 +987,13 @@ client.on('messageCreate', async (message) => {
             }
         }
 
-        // 2️⃣ ANTI-TOXICITÉ GEMINI (1 check / 15 secondes)
+        // 2️⃣ ANTI-TOXICITÉ DEEPSEEK (1 check / 5 secondes)
         if (message.content.length > 3) {
             const dernierCheck = dernierCheckToxicite.get(message.author.id) || 0;
-            if (Date.now() - dernierCheck > 15000) {
+            if (Date.now() - dernierCheck > 5000) {
                 dernierCheckToxicite.set(message.author.id, Date.now());
                 
-                const analyseToxicite = await verifierToxiciteGemini(message.content, message.author.username, message.channel.name);
+                const analyseToxicite = await verifierToxiciteDeepSeek(message.content, message.author.username, message.channel.name);
                 if (analyseToxicite.estToxique) {
                     statsDuJour.toxicite++;
                     await message.delete().catch(() => {});
