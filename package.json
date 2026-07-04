@@ -13,6 +13,5 @@
     "axios": "^1.7.9",
     "jsqr": "^1.4.0",
     "sharp": "^0.32.6",
-    "@mistralai/mistralai": "1.0.0"
   }
 }
